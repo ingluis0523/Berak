@@ -29,7 +29,7 @@ const schema = z.object({
   direccion: z.string().optional(),
   fecha_nacimiento: z.string().optional(),
   tipo_persona: z.enum([
-    'miembro', 'lider', 'visitante', 'servidor', 'anfitrion', 'pastor', 'sublider', 'anciano',
+    'miembro', 'lider', 'visitante', 'anfitrion', 'pastor', 'sublider', 'anciano', 'servidor',
   ] as const),
   estado_persona_id: z.string().optional(),
   lider_id: z.string().optional(),
@@ -44,7 +44,7 @@ interface Props {
   lideres: SelectOption[]
 }
 
-const TIPO_OPTIONS = Object.entries(TIPO_PERSONA_LABELS) as [TipoPersona, string][]
+const TIPO_OPTIONS = (Object.entries(TIPO_PERSONA_LABELS) as [TipoPersona, string][]).filter(([val]) => val !== 'servidor')
 
 export function EditarPersonaForm({ persona, estados, lideres }: Props) {
   const router = useRouter()

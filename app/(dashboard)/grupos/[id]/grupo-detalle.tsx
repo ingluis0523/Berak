@@ -153,14 +153,34 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
 
   const eventosAgrupados = useMemo(() => {
     const grouped: Record<string, Record<string, Evento[]>> = {}
-    eventosIniciales.forEach((e) => {
+    const sorted = [...eventosIniciales].sort(
+      (a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+    )
+    sorted.forEach((e) => {
       const mes = getMonthLabel(e.fecha)
       const semana = getWeekLabel(e.fecha)
       if (!grouped[mes]) grouped[mes] = {}
       if (!grouped[mes][semana]) grouped[mes][semana] = []
       grouped[mes][semana].push(e)
     })
-    return grouped
+
+    const now = new Date()
+    const currentMonthLabel = getMonthLabel(now.toISOString().split('T')[0])
+    const mesKeys = Object.keys(grouped)
+    mesKeys.sort((a, b) => {
+      if (a === currentMonthLabel) return -1
+      if (b === currentMonthLabel) return 1
+      const dateA = new Date(grouped[a][Object.keys(grouped[a])[0]][0].fecha)
+      const dateB = new Date(grouped[b][Object.keys(grouped[b])[0]][0].fecha)
+      const diffA = dateA.getTime() - now.getTime()
+      const diffB = dateB.getTime() - now.getTime()
+      if (diffA >= 0 && diffB >= 0) return diffA - diffB
+      if (diffA < 0 && diffB < 0) return diffB - diffA
+      return diffA >= 0 ? -1 : 1
+    })
+    const ordered: typeof grouped = {}
+    mesKeys.forEach((k) => (ordered[k] = grouped[k]))
+    return ordered
   }, [eventosIniciales])
 
   // ── Asistencias (últimas 8 semanas) ─────────────────────────────────────
@@ -335,7 +355,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                                 >
                                   {e.estado}
                                 </Badge>
-                                {e.estado === 'realizado' && (
+                                {e.estado !== 'cancelado' && (
                                   <Button variant="outline" size="sm" asChild className="gap-1 shrink-0">
                                     <Link href={`/asistencias/${e.id}`}>
                                       <CalendarCheck className="h-3.5 w-3.5" />

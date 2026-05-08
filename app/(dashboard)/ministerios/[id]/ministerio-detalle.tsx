@@ -107,12 +107,16 @@ export default function MinisterioDetalle({ ministerio, miembrosIniciales }: Pro
       return
     }
 
-    // Update tipo_persona to 'servidor' if not lider/pastor
-    const persona = personas.find((p) => p.id === selectedPersonaId)
-    if (persona && persona.tipo_persona !== 'lider' && persona.tipo_persona !== 'pastor') {
+    // Cambiar estado a 'Servidor' (sin modificar tipo_persona)
+    const { data: estadoServidor } = await supabase
+      .from('estados_persona')
+      .select('id')
+      .ilike('nombre', 'servidor')
+      .maybeSingle()
+    if (estadoServidor?.id) {
       await supabase
         .from('personas')
-        .update({ tipo_persona: 'servidor' })
+        .update({ estado_persona_id: estadoServidor.id })
         .eq('id', selectedPersonaId)
     }
 
@@ -245,8 +249,7 @@ export default function MinisterioDetalle({ ministerio, miembrosIniciales }: Pro
           <DialogHeader>
             <DialogTitle>Agregar miembro al ministerio</DialogTitle>
             <DialogDescription>
-              Busca y selecciona una persona. Si no es líder o pastor, su tipo se actualizará a
-              &quot;servidor&quot;.
+              Busca y selecciona una persona para agregar al ministerio.
             </DialogDescription>
           </DialogHeader>
 

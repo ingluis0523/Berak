@@ -72,11 +72,11 @@ export const TIPO_PERSONA_LABELS: Record<string, string> = {
   miembro:   'Miembro',
   lider:     'Líder',
   visitante: 'Visitante',
-  servidor:  'Servidor',
   anfitrion: 'Anfitrión',
   pastor:    'Pastor',
   sublider:  'Sublíder',
   anciano:   'Anciano',
+  servidor:  'Servidor', // mantenido para compatibilidad con registros existentes
 }
 
 export const DIA_LABELS: Record<string, string> = {

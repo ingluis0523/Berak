@@ -149,13 +149,16 @@ export function AsistenciaClient({
 
   const stats = useMemo(() => {
     const asistio = rows.filter((r) => r.estado === 'asistio').length
-    const noAsistio = rows.filter((r) => r.estado === 'no_asistio').length
-    const total = rows.length
+    // null estado = sin registro = ausente
+    const noAsistio = rows.filter((r) => r.estado === 'no_asistio' || r.estado === null).length
+    const totalMiembros = rows.length
+    const pct = totalMiembros > 0 ? Math.round((asistio / totalMiembros) * 100) : 0
     return {
-      total: total + visitantes.length,
+      total: totalMiembros + visitantes.length,
       asistio: asistio + visitantes.length,
       noAsistio,
       visitantes: visitantes.length,
+      pct,
     }
   }, [rows, visitantes])
 
@@ -331,6 +334,7 @@ export function AsistenciaClient({
             <StatPill label="Asistieron" value={stats.asistio} color="text-green-600" />
             <StatPill label="Ausentes" value={stats.noAsistio} color="text-red-500" />
             <StatPill label="Visitantes" value={stats.visitantes} color="text-yellow-600" />
+            <StatPill label="%" value={`${stats.pct}%`} color="text-blue-600" />
           </div>
           <Button
             size="sm"
@@ -609,7 +613,7 @@ function StatPill({
   color,
 }: {
   label: string
-  value: number
+  value: number | string
   color: string
 }) {
   return (

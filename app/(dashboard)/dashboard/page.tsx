@@ -230,7 +230,7 @@ export default async function DashboardPage() {
             {!recentPersonas || recentPersonas.length === 0 ? (
               <p className="px-5 py-4 text-sm text-gray-400">Sin registros recientes.</p>
             ) : (
-              <ul className="divide-y divide-gray-100">
+              <ul className="divide-y divide-gray-100 max-h-[320px] overflow-y-auto">
                 {recentPersonas.map((p) => {
                   const initials =
                     (p.nombres?.charAt(0) ?? '') + (p.apellidos?.charAt(0) ?? '')

@@ -265,7 +265,14 @@ function NuevoUsuarioModal({
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => { setForm(f => ({ ...f, personaId: p.id })); setSearch('') }}
+                  onClick={() => {
+                    setForm(f => ({
+                      ...f,
+                      personaId: p.id,
+                      email: p.correo ? p.correo : f.email,
+                    }))
+                    setSearch('')
+                  }}
                   className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${
                     form.personaId === p.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'
                   }`}
@@ -428,11 +435,17 @@ export default function UsuariosPage() {
                   <TableRow key={u.id}>
                     <TableCell>
                       <div>
-                        <p className="font-medium text-gray-900 text-xs font-mono">{u.id.slice(0, 8)}...</p>
-                        {u.persona && (
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {u.persona.nombres} {u.persona.apellidos}
-                          </p>
+                        {u.persona ? (
+                          <>
+                            <p className="font-medium text-gray-900 text-sm">
+                              {u.persona.nombres} {u.persona.apellidos}
+                            </p>
+                            {u.persona.correo && (
+                              <p className="text-xs text-gray-400">{u.persona.correo}</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-400 italic">Sin persona asociada</p>
                         )}
                       </div>
                     </TableCell>
