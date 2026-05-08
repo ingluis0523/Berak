@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Combobox } from '@/components/ui/combobox'
 
 const schema = z.object({
   nombres: z.string().min(2, 'Mínimo 2 caracteres').max(100),
@@ -87,7 +88,7 @@ export function EditarPersonaForm({ persona, estados, lideres }: Props) {
         direccion: data.direccion?.trim() || null,
         fecha_nacimiento: data.fecha_nacimiento || null,
         estado_persona_id: data.estado_persona_id || null,
-        lider_id: data.lider_id || null,
+        lider_id: (data.lider_id && data.lider_id !== 'none') ? data.lider_id : null,
         observaciones: data.observaciones?.trim() || null,
       }
 
@@ -205,20 +206,12 @@ export function EditarPersonaForm({ persona, estados, lideres }: Props) {
 
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <label className="text-sm font-medium text-gray-700">Líder responsable</label>
-            <Select
-              defaultValue={watch('lider_id')}
+            <Combobox
+              options={[{ value: 'none', label: 'Sin líder' }, ...lideres]}
+              value={watch('lider_id') || undefined}
               onValueChange={(v) => setValue('lider_id', v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sin líder asignado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Sin líder</SelectItem>
-                {lideres.map((l) => (
-                  <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="Sin líder asignado"
+            />
           </div>
         </CardContent>
       </Card>

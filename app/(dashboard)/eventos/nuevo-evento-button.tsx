@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface FormState {
   nombre: string
@@ -29,6 +30,7 @@ interface FormState {
   fecha: string
   hora_inicio: string
   hora_fin: string
+  todos_grupos: boolean
 }
 
 const EMPTY: FormState = {
@@ -37,6 +39,7 @@ const EMPTY: FormState = {
   fecha: '',
   hora_inicio: '',
   hora_fin: '',
+  todos_grupos: false,
 }
 
 export function NuevoEventoButton() {
@@ -69,6 +72,37 @@ export function NuevoEventoButton() {
     if (!form.fecha) { setError('La fecha es obligatoria.'); return }
 
     setLoading(true)
+
+    if (form.todos_grupos) {
+      const { data: gruposActivos, error: fetchError } = await supabase
+        .from('grupos')
+        .select('id')
+        .is('deleted_at', null)
+        .eq('estado', true)
+
+      if (fetchError) { setError(fetchError.message); setLoading(false); return }
+
+      const rows = (gruposActivos ?? []).map((g) => ({
+        nombre: form.nombre.trim(),
+        grupo_id: g.id,
+        fecha: form.fecha,
+        hora_inicio: form.hora_inicio || null,
+        hora_fin: form.hora_fin || null,
+        estado: 'programado' as const,
+      }))
+
+      if (rows.length === 0) { setError('No hay grupos activos.'); setLoading(false); return }
+
+      const { error: insertError } = await supabase.from('eventos').insert(rows)
+      if (insertError) { setError(insertError.message); setLoading(false); return }
+
+      setLoading(false)
+      setOpen(false)
+      setForm(EMPTY)
+      router.refresh()
+      return
+    }
+
     const { data, error: insertError } = await supabase
       .from('eventos')
       .insert({
@@ -128,22 +162,34 @@ export function NuevoEventoButton() {
               {/* Grupo */}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">Grupo (opcional)</label>
-                <Select
-                  value={form.grupo_id || 'ninguno'}
-                  onValueChange={(v) => set('grupo_id', v === 'ninguno' ? '' : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sin grupo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ninguno">Sin grupo</SelectItem>
-                    {grupos.map((g) => (
-                      <SelectItem key={g.id} value={g.id}>
-                        {g.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2 mb-2">
+                  <Checkbox
+                    id="todos_grupos"
+                    checked={form.todos_grupos}
+                    onCheckedChange={(v) => set('todos_grupos', Boolean(v))}
+                  />
+                  <label htmlFor="todos_grupos" className="text-sm text-gray-600 cursor-pointer">
+                    Crear para todos los grupos activos
+                  </label>
+                </div>
+                {!form.todos_grupos && (
+                  <Select
+                    value={form.grupo_id || 'ninguno'}
+                    onValueChange={(v) => set('grupo_id', v === 'ninguno' ? '' : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sin grupo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ninguno">Sin grupo</SelectItem>
+                      {grupos.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>
+                          {g.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               {/* Fecha */}

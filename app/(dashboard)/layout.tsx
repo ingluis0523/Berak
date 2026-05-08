@@ -1,10 +1,12 @@
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
+import { getCurrentUser } from '@/lib/current-user'
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser()
   return (
     <div className="flex h-screen overflow-hidden bg-[#F0F4F8]">
-      <Sidebar />
+      <Sidebar isAdmin={user?.is_admin ?? false} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-y-auto p-5">

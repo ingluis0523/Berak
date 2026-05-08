@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Persona, Red, DiaSemana } from '@/types'
+import { Combobox } from '@/components/ui/combobox'
 
 // ─── Zod schema ──────────────────────────────────────────────────────────────
 
@@ -150,9 +151,6 @@ export default function NuevoGrupoPage() {
     router.push('/grupos')
   }
 
-  const personaLabel = (p: Pick<Persona, 'nombres' | 'apellidos'>) =>
-    `${p.nombres} ${p.apellidos}`
-
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
@@ -201,55 +199,42 @@ export default function NuevoGrupoPage() {
               <label className="text-sm font-medium text-gray-700">
                 Líder <span className="text-red-500">*</span>
               </label>
-              <Select value={form.lider_id} onValueChange={(v) => setField('lider_id', v)}>
-                <SelectTrigger error={errors.lider_id}>
-                  <SelectValue placeholder="Selecciona el líder" />
-                </SelectTrigger>
-                <SelectContent>
-                  {personas.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {personaLabel(p)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={personas.map((p) => ({ value: p.id, label: `${p.nombres} ${p.apellidos}` }))}
+                value={form.lider_id || undefined}
+                onValueChange={(v) => setField('lider_id', v)}
+                placeholder="Selecciona el líder"
+                error={errors.lider_id}
+              />
               {errors.lider_id && <p className="text-xs text-red-500">{errors.lider_id}</p>}
             </div>
 
             {/* Sublíder */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Sublíder</label>
-              <Select value={form.sublider_id} onValueChange={(v) => setField('sublider_id', v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona el sublíder (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin sublíder</SelectItem>
-                  {personas.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {personaLabel(p)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={[
+                  { value: 'none', label: 'Sin sublíder' },
+                  ...personas.map((p) => ({ value: p.id, label: `${p.nombres} ${p.apellidos}` })),
+                ]}
+                value={form.sublider_id || undefined}
+                onValueChange={(v) => setField('sublider_id', v)}
+                placeholder="Selecciona el sublíder (opcional)"
+              />
             </div>
 
             {/* Anfitrión */}
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Anfitrión</label>
-              <Select value={form.anfitrion_id} onValueChange={(v) => setField('anfitrion_id', v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona el anfitrión (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin anfitrión</SelectItem>
-                  {personas.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {personaLabel(p)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={[
+                  { value: 'none', label: 'Sin anfitrión' },
+                  ...personas.map((p) => ({ value: p.id, label: `${p.nombres} ${p.apellidos}` })),
+                ]}
+                value={form.anfitrion_id || undefined}
+                onValueChange={(v) => setField('anfitrion_id', v)}
+                placeholder="Selecciona el anfitrión (opcional)"
+              />
             </div>
 
             {/* Red */}

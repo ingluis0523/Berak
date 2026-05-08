@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Combobox } from '@/components/ui/combobox'
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ export function NuevaPersonaForm({ estados, lideres }: Props) {
       if (data.direccion) payload.direccion = data.direccion.trim()
       if (data.fecha_nacimiento) payload.fecha_nacimiento = data.fecha_nacimiento
       if (data.estado_persona_id) payload.estado_persona_id = data.estado_persona_id
-      if (data.lider_id) payload.lider_id = data.lider_id
+      if (data.lider_id && data.lider_id !== 'none') payload.lider_id = data.lider_id
       if (data.observaciones) payload.observaciones = data.observaciones.trim()
 
       const { error } = await supabase.from('personas').insert(payload)
@@ -195,16 +196,12 @@ export function NuevaPersonaForm({ estados, lideres }: Props) {
           {/* Líder */}
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <label className="text-sm font-medium text-gray-700">Líder responsable</label>
-            <Select onValueChange={(v) => setValue('lider_id', v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sin líder asignado" />
-              </SelectTrigger>
-              <SelectContent>
-                {lideres.map((l) => (
-                  <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={[{ value: 'none', label: 'Sin líder' }, ...lideres]}
+              value={watch('lider_id') || undefined}
+              onValueChange={(v) => setValue('lider_id', v)}
+              placeholder="Sin líder asignado"
+            />
           </div>
         </CardContent>
       </Card>

@@ -29,6 +29,7 @@ interface NavItem {
   href: string
   icon: React.ElementType
   section?: string
+  adminOnly?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -40,9 +41,9 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Eventos',      href: '/eventos',       icon: CalendarDays,    section: 'operativo' },
   { label: 'Asistencias',  href: '/asistencias',   icon: ClipboardCheck,  section: 'operativo' },
   { label: 'Reportes',     href: '/reportes',      icon: BarChart3,       section: 'reportes' },
-  { label: 'Usuarios',     href: '/usuarios',      icon: BookOpen,        section: 'sistema' },
-  { label: 'Roles',        href: '/roles',         icon: ShieldCheck,     section: 'sistema' },
-  { label: 'Configuración',href: '/configuracion', icon: Settings,        section: 'sistema' },
+  { label: 'Usuarios',     href: '/usuarios',      icon: BookOpen,        section: 'sistema', adminOnly: true },
+  { label: 'Roles',        href: '/roles',         icon: ShieldCheck,     section: 'sistema', adminOnly: true },
+  { label: 'Configuración',href: '/configuracion', icon: Settings,        section: 'sistema', adminOnly: true },
 ]
 
 const SECTION_LABELS: Record<string, string> = {
@@ -53,10 +54,12 @@ const SECTION_LABELS: Record<string, string> = {
   sistema:   'Sistema',
 }
 
-export function Sidebar() {
+export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
   const pathname  = usePathname()
   const router    = useRouter()
   const [collapsed, setCollapsed] = useState(false)
+
+  const visibleItems = NAV_ITEMS.filter(i => !i.adminOnly || isAdmin)
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
 
@@ -67,7 +70,7 @@ export function Sidebar() {
     router.refresh()
   }
 
-  const sections = [...new Set(NAV_ITEMS.map(i => i.section!))]
+  const sections = [...new Set(visibleItems.map(i => i.section!))]
 
   return (
     <aside
@@ -93,7 +96,7 @@ export function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 px-2">
         {sections.map(section => {
-          const items = NAV_ITEMS.filter(i => i.section === section)
+          const items = visibleItems.filter(i => i.section === section)
           return (
             <div key={section} className="mb-4">
               {!collapsed && (
