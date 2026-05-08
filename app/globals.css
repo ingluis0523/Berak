@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+/* ─── BERAK Design System ─────────────────────────────── */
+
+@theme {
+  /* Brand primary (deep navy) */
+  --color-primary-50:  #EBF5FB;
+  --color-primary-100: #D6EAF8;
+  --color-primary-200: #AED6F1;
+  --color-primary-300: #85C1E9;
+  --color-primary-400: #5DADE2;
+  --color-primary-500: #2E86C1;
+  --color-primary-600: #1B6FA8;
+  --color-primary-700: #1B4F72;
+  --color-primary-800: #154360;
+  --color-primary-900: #0E2F4A;
+
+  /* Accent gold */
+  --color-accent-300: #F9E79F;
+  --color-accent-400: #F4D03F;
+  --color-accent-500: #D4AC0D;
+  --color-accent-600: #B7950B;
+  --color-accent-700: #9A7D0A;
+
+  /* Sidebar */
+  --color-sidebar:         #0A2540;
+  --color-sidebar-hover:   #123358;
+  --color-sidebar-active:  #1B4F72;
+  --color-sidebar-border:  #0d2e4b;
+  --color-sidebar-fg:      #ECF0F1;
+  --color-sidebar-muted:   #94A3B8;
+
+  /* Status badges */
+  --color-status-nuevo:      #2E86C1;
+  --color-status-visitante:  #8E44AD;
+  --color-status-asistente:  #27AE60;
+  --color-status-servidor:   #E67E22;
+  --color-status-inactivo:   #95A5A6;
+
+  /* Semantic */
+  --color-success:   #27AE60;
+  --color-warning:   #E67E22;
+  --color-danger:    #E74C3C;
+  --color-info:      #2980B9;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+}
+
+:root {
+  --bg-main: #F0F4F8;
+  --fg-main: #1A202C;
+  --border:  #E2E8F0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--fg-main);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E0; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #A0AEC0; }
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
