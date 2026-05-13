@@ -66,8 +66,12 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
 --    - Líderes ven personas donde son el lider_id o están en su grupo
 -- ═══════════════════════════════════════════════════════════════════════════════
 
--- Eliminar política amplia existente en personas
+-- Eliminar políticas existentes
 DROP POLICY IF EXISTS "Acceso autenticado" ON personas;
+DROP POLICY IF EXISTS "personas_select" ON personas;
+DROP POLICY IF EXISTS "personas_insert" ON personas;
+DROP POLICY IF EXISTS "personas_update" ON personas;
+DROP POLICY IF EXISTS "personas_delete" ON personas;
 
 -- SELECT: admin ve todo; líder ve los suyos
 CREATE POLICY "personas_select" ON personas
