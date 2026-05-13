@@ -1,6 +1,10 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+let _resend: Resend | null = null
+function getResend() {
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY ?? 'placeholder')
+  return _resend
+}
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'Berak <onboarding@resend.dev>'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.easypunto.live'
@@ -138,7 +142,7 @@ export async function sendWelcomeEmail({
     </table>
   `)
 
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: '¡Bienvenido a Berak! Tus credenciales de acceso',
