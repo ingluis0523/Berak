@@ -311,7 +311,11 @@ export function AsistenciaClient({
     <div className="space-y-5 max-w-3xl">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/eventos')}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push(evento.grupo_id ? `/grupos/${evento.grupo_id}` : '/eventos')}
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">

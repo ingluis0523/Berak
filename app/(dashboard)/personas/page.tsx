@@ -62,7 +62,7 @@ export default async function PersonasPage({ searchParams }: PageProps) {
   let query = supabase
     .from('personas')
     .select(
-      'id, nombres, apellidos, tipo_persona, telefono, fecha_registro, estado_persona:estado_persona_id(id, nombre, color)',
+      'id, nombres, apellidos, tipo_persona, telefono, fecha_registro, estado_persona:estado_persona_id(id, nombre, color), lider:lider_id(id, nombres, apellidos)',
       { count: 'exact' }
     )
     .is('deleted_at', null)
@@ -118,6 +118,7 @@ export default async function PersonasPage({ searchParams }: PageProps) {
                 <TableHead>Nombre</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead className="hidden lg:table-cell">Líder</TableHead>
                 <TableHead className="hidden md:table-cell">Teléfono</TableHead>
                 <TableHead className="hidden sm:table-cell">Registro</TableHead>
                 <TableHead className="w-[90px] text-right">Acciones</TableHead>
@@ -126,7 +127,7 @@ export default async function PersonasPage({ searchParams }: PageProps) {
             <TableBody>
               {!personas || personas.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-gray-400">
+                  <TableCell colSpan={7} className="text-center py-10 text-gray-400">
                     No se encontraron personas.
                   </TableCell>
                 </TableRow>
@@ -158,6 +159,13 @@ export default async function PersonasPage({ searchParams }: PageProps) {
                         ) : (
                           <span className="text-gray-400 text-xs">—</span>
                         )}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell text-gray-600 text-sm">
+                        {(() => {
+                          const liderRaw = p.lider as unknown
+                          const lider = (Array.isArray(liderRaw) ? liderRaw[0] : liderRaw) as { nombres: string; apellidos: string } | null
+                          return lider ? `${lider.nombres} ${lider.apellidos}` : <span className="text-gray-400">—</span>
+                        })()}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-gray-600">
                         {p.telefono ?? '—'}

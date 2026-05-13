@@ -47,11 +47,31 @@ export default async function GrupoPage({ params }: Props) {
     .order('fecha', { ascending: false })
     .limit(50)
 
+  // Fetch attendance counts (asistio only, non-visitor) per event
+  const eventoIds = (eventos ?? []).map((e) => e.id)
+  let asistenciasCountMap: Record<string, number> = {}
+  if (eventoIds.length > 0) {
+    const { data: counts } = await supabase
+      .from('asistencias')
+      .select('evento_id')
+      .in('evento_id', eventoIds)
+      .eq('estado', 'asistio')
+      .eq('es_visitante', false)
+    counts?.forEach((a) => {
+      asistenciasCountMap[a.evento_id] = (asistenciasCountMap[a.evento_id] ?? 0) + 1
+    })
+  }
+
+  const eventosWithCount = (eventos ?? []).map((e) => ({
+    ...e,
+    asistencias_count: asistenciasCountMap[e.id] ?? 0,
+  }))
+
   return (
     <GrupoDetalle
       grupo={grupo}
       miembrosIniciales={miembros ?? []}
-      eventosIniciales={(eventos ?? []) as import('@/types').Evento[]}
+      eventosIniciales={eventosWithCount as import('@/types').Evento[]}
     />
   )
 }

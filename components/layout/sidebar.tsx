@@ -41,7 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Eventos',      href: '/eventos',       icon: CalendarDays,    section: 'operativo' },
   { label: 'Asistencias',  href: '/asistencias',   icon: ClipboardCheck,  section: 'operativo' },
   { label: 'Reportes',     href: '/reportes',      icon: BarChart3,       section: 'reportes' },
-  { label: 'Usuarios',     href: '/usuarios',      icon: BookOpen,        section: 'sistema', adminOnly: true },
+  { label: 'Usuarios',     href: '/usuarios',      icon: BookOpen,        section: 'sistema' },
   { label: 'Roles',        href: '/roles',         icon: ShieldCheck,     section: 'sistema', adminOnly: true },
   { label: 'Configuración',href: '/configuracion', icon: Settings,        section: 'sistema', adminOnly: true },
 ]

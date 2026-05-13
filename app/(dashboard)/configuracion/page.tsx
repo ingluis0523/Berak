@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Pencil, AlertCircle, Settings, Zap, User } from 'lucide-react'
+import { Plus, Pencil, AlertCircle, Settings, Zap, User, Trash2 } from 'lucide-react'
 
 // ─── Reglas predefinidas (seed) ───────────────────────────────────────────────
 
@@ -584,6 +584,7 @@ function TabAutomatizaciones() {
   const [estados, setEstados] = useState<EstadoPersona[]>([])
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
   const [modal, setModal] = useState<{ open: boolean; edit: ReglaAutomatizacion | null }>({ open: false, edit: null })
 
   const seedReglas = async () => {
@@ -612,6 +613,14 @@ function TabAutomatizaciones() {
     await supabase.from('reglas_automatizacion').update({ activo: !regla.activo }).eq('id', regla.id)
     setReglas(prev => prev.map(r => r.id === regla.id ? { ...r, activo: !r.activo } : r))
     setToggling(null)
+  }
+
+  const handleDelete = async (regla: ReglaAutomatizacion) => {
+    if (!window.confirm(`¿Eliminar la regla "${regla.nombre}"?`)) return
+    setDeleting(regla.id)
+    await supabase.from('reglas_automatizacion').delete().eq('id', regla.id)
+    setReglas(prev => prev.filter(r => r.id !== regla.id))
+    setDeleting(null)
   }
 
   const TIPO_LABELS: Record<string, string> = {
@@ -669,6 +678,16 @@ function TabAutomatizaciones() {
                     loading={toggling === r.id}
                   >
                     {r.activo ? 'Desactivar' : 'Activar'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => handleDelete(r)}
+                    loading={deleting === r.id}
+                    className="text-red-400 hover:text-red-600 hover:bg-red-50"
+                    title="Eliminar regla"
+                  >
+                    <Trash2 size={13} />
                   </Button>
                 </div>
               </CardContent>

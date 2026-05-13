@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, PowerOff, Users, Network } from 'lucide-react'
+import { Plus, Pencil, PowerOff, Users, Network, UserSearch } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,12 +23,19 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import type { Red, Persona } from '@/types'
-
-// Note: metadata (title: 'Redes') is set via the root layout or a parent server component.
 
 interface RedWithCount extends Red {
   grupos_count: number
+}
+
+interface PersonaEnRed {
+  id: string
+  nombres: string
+  apellidos: string
+  tipo_persona: string
+  grupo_nombre: string
 }
 
 interface RedFormState {
@@ -56,6 +63,14 @@ export default function RedesPage() {
   const [editingRed, setEditingRed] = useState<Red | null>(null)
   const [form, setForm] = useState<RedFormState>(defaultForm)
   const [formErrors, setFormErrors] = useState<Partial<RedFormState>>({})
+
+  // Personas modal
+  const [personasModal, setPersonasModal] = useState<{
+    open: boolean
+    red: RedWithCount | null
+    personas: PersonaEnRed[]
+    loading: boolean
+  }>({ open: false, red: null, personas: [], loading: false })
 
   const fetchRedes = useCallback(async () => {
     setLoading(true)
@@ -116,6 +131,47 @@ export default function RedesPage() {
     })
     setFormErrors({})
     setModalOpen(true)
+  }
+
+  async function handleVerPersonas(red: RedWithCount) {
+    setPersonasModal({ open: true, red, personas: [], loading: true })
+
+    // Fetch all active members of groups in this red
+    const { data: miembros } = await supabase
+      .from('grupo_miembros')
+      .select('persona:personas(id,nombres,apellidos,tipo_persona), grupo:grupos(nombre)')
+      .eq('activo', true)
+      .in(
+        'grupo_id',
+        // subquery: get group ids for this red
+        (await supabase
+          .from('grupos')
+          .select('id')
+          .eq('red_id', red.id)
+          .is('deleted_at', null)
+          .then((r) => (r.data ?? []).map((g) => g.id)))
+      )
+
+    const personas: PersonaEnRed[] = []
+    const seen = new Set<string>()
+    miembros?.forEach((m) => {
+      const pRaw = m.persona as unknown
+      const gRaw = m.grupo as unknown
+      const p = (Array.isArray(pRaw) ? pRaw[0] : pRaw) as { id: string; nombres: string; apellidos: string; tipo_persona: string } | null
+      const g = (Array.isArray(gRaw) ? gRaw[0] : gRaw) as { nombre: string } | null
+      if (p && !seen.has(p.id)) {
+        seen.add(p.id)
+        personas.push({
+          id: p.id,
+          nombres: p.nombres,
+          apellidos: p.apellidos,
+          tipo_persona: p.tipo_persona,
+          grupo_nombre: g?.nombre ?? '—',
+        })
+      }
+    })
+    personas.sort((a, b) => a.nombres.localeCompare(b.nombres))
+    setPersonasModal((prev) => ({ ...prev, personas, loading: false }))
   }
 
   function validate(): boolean {
@@ -222,25 +278,36 @@ export default function RedesPage() {
                   <Users className="h-3.5 w-3.5" />
                   <span>{red.grupos_count} {red.grupos_count === 1 ? 'grupo' : 'grupos'}</span>
                 </div>
-                <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
+                <div className="flex flex-col gap-2 pt-1 border-t border-gray-100">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => openEdit(red)}
-                    className="flex-1 gap-1"
+                    onClick={() => handleVerPersonas(red)}
+                    className="w-full gap-1"
                   >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Editar
+                    <UserSearch className="h-3.5 w-3.5" />
+                    Ver personas
                   </Button>
-                  <Button
-                    variant={red.estado ? 'danger-outline' : 'outline'}
-                    size="sm"
-                    onClick={() => handleToggleEstado(red)}
-                    className="flex-1 gap-1"
-                  >
-                    <PowerOff className="h-3.5 w-3.5" />
-                    {red.estado ? 'Desactivar' : 'Activar'}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEdit(red)}
+                      className="flex-1 gap-1"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant={red.estado ? 'danger-outline' : 'outline'}
+                      size="sm"
+                      onClick={() => handleToggleEstado(red)}
+                      className="flex-1 gap-1"
+                    >
+                      <PowerOff className="h-3.5 w-3.5" />
+                      {red.estado ? 'Desactivar' : 'Activar'}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -313,6 +380,64 @@ export default function RedesPage() {
             </Button>
             <Button onClick={handleSave} loading={saving}>
               {editingRed ? 'Guardar cambios' : 'Crear red'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal personas de la red */}
+      <Dialog
+        open={personasModal.open}
+        onOpenChange={(v) => !v && setPersonasModal((p) => ({ ...p, open: false }))}
+      >
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>
+              Personas en {personasModal.red?.nombre ?? 'la red'}
+            </DialogTitle>
+            <DialogDescription>
+              Miembros activos de los grupos pertenecientes a esta red
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="px-6 py-4">
+            {personasModal.loading ? (
+              <div className="text-center py-8 text-gray-400 text-sm">Cargando personas...</div>
+            ) : personasModal.personas.length === 0 ? (
+              <div className="text-center py-8 text-gray-400 text-sm">
+                No hay personas registradas en esta red
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-3">
+                  {personasModal.personas.length} persona{personasModal.personas.length !== 1 ? 's' : ''}
+                </p>
+                <div className="max-h-[400px] overflow-y-auto -mx-6 px-6 space-y-1">
+                  {personasModal.personas.map((p) => (
+                    <div key={p.id} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
+                          {`${p.nombres[0] ?? ''}${p.apellidos[0] ?? ''}`.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {p.nombres} {p.apellidos}
+                        </p>
+                        <p className="text-xs text-gray-500 capitalize truncate">
+                          {p.tipo_persona} · {p.grupo_nombre}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setPersonasModal((p) => ({ ...p, open: false }))}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>

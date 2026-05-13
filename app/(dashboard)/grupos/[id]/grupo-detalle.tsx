@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Pencil, UserPlus, UserMinus, CalendarCheck } from 'lucide-react'
+import { ArrowLeft, Pencil, UserPlus, UserMinus, CalendarCheck, ChevronDown, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -70,6 +70,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
   const router = useRouter()
 
   const [miembros, setMiembros] = useState<GrupoMiembro[]>(miembrosIniciales)
+  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set())
   const [searchPersona, setSearchPersona] = useState('')
   const [personas, setPersonas] = useState<Pick<Persona, 'id' | 'nombres' | 'apellidos'>[]>([])
   const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null)
@@ -319,58 +320,80 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                 No hay eventos registrados
               </div>
             ) : (
-              <div className="p-5 space-y-6">
-                {Object.entries(eventosAgrupados).map(([mes, semanas]) => (
-                  <div key={mes}>
-                    <h3 className="text-sm font-semibold text-blue-800 bg-blue-50 rounded-lg px-3 py-1.5 inline-block capitalize mb-3">
-                      {mes}
-                    </h3>
-                    <div className="space-y-4 ml-2">
-                      {Object.entries(semanas).map(([semana, evts]) => (
-                        <div key={semana}>
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
-                            {semana}
-                          </p>
-                          <div className="space-y-2">
-                            {evts.map((e) => (
-                              <div
-                                key={e.id}
-                                className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-900">{e.nombre}</p>
-                                  <p className="text-xs text-gray-500">
-                                    {formatDate(e.fecha)}
-                                    {e.hora_inicio && ` · ${e.hora_inicio.slice(0, 5)}`}
-                                  </p>
-                                </div>
-                                <Badge
-                                  variant={
-                                    e.estado === 'realizado'
-                                      ? 'realizado'
-                                      : e.estado === 'cancelado'
-                                      ? 'cancelado'
-                                      : 'programado'
-                                  }
-                                >
-                                  {e.estado}
-                                </Badge>
-                                {e.estado !== 'cancelado' && (
-                                  <Button variant="outline" size="sm" asChild className="gap-1 shrink-0">
-                                    <Link href={`/asistencias/${e.id}`}>
-                                      <CalendarCheck className="h-3.5 w-3.5" />
-                                      Asistencia
-                                    </Link>
-                                  </Button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+              <div className="p-5 space-y-3">
+                {Object.entries(eventosAgrupados).map(([mes, semanas]) => {
+                  const isCollapsed = collapsedMonths.has(mes)
+                  const totalEvtsInMes = Object.values(semanas).reduce((s, a) => s + a.length, 0)
+                  return (
+                    <div key={mes} className="border border-gray-100 rounded-xl overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setCollapsedMonths(prev => {
+                          const next = new Set(prev)
+                          if (next.has(mes)) next.delete(mes)
+                          else next.add(mes)
+                          return next
+                        })}
+                        className="w-full flex items-center justify-between px-4 py-2.5 bg-blue-50 hover:bg-blue-100 transition-colors"
+                      >
+                        <span className="text-sm font-semibold text-blue-800 capitalize">{mes}</span>
+                        <div className="flex items-center gap-2 text-blue-600">
+                          <span className="text-xs">{totalEvtsInMes} evento{totalEvtsInMes !== 1 ? 's' : ''}</span>
+                          {isCollapsed
+                            ? <ChevronRight className="h-4 w-4" />
+                            : <ChevronDown className="h-4 w-4" />}
                         </div>
-                      ))}
+                      </button>
+
+                      {!isCollapsed && (
+                        <div className="p-4 space-y-4">
+                          {Object.entries(semanas).map(([semana, evts]) => (
+                            <div key={semana}>
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 ml-1">
+                                {semana}
+                              </p>
+                              <div className="space-y-2">
+                                {evts.map((e) => (
+                                  <div
+                                    key={e.id}
+                                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50"
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium text-gray-900">{e.nombre}</p>
+                                      <p className="text-xs text-gray-500">
+                                        {formatDate(e.fecha)}
+                                        {e.hora_inicio && ` · ${e.hora_inicio.slice(0, 5)}`}
+                                      </p>
+                                    </div>
+                                    <Badge
+                                      variant={
+                                        e.estado === 'realizado'
+                                          ? 'realizado'
+                                          : e.estado === 'cancelado'
+                                          ? 'cancelado'
+                                          : 'programado'
+                                      }
+                                    >
+                                      {e.estado}
+                                    </Badge>
+                                    {e.estado !== 'cancelado' && (
+                                      <Button variant="outline" size="sm" asChild className="gap-1 shrink-0">
+                                        <Link href={`/asistencias/${e.id}`}>
+                                          <CalendarCheck className="h-3.5 w-3.5" />
+                                          Asistencia
+                                        </Link>
+                                      </Button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -399,7 +422,9 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                         </span>
                       </span>
                       <span className="text-gray-600 font-semibold shrink-0">
-                        {porcentaje != null ? `${porcentaje}%` : 'N/A'}
+                        {porcentaje != null
+                          ? `${evento.asistencias_count} de ${miembros.length} (${porcentaje}%)`
+                          : 'N/A'}
                       </span>
                     </div>
                     {porcentaje != null && (

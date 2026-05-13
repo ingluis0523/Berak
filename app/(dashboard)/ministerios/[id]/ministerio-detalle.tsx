@@ -108,11 +108,20 @@ export default function MinisterioDetalle({ ministerio, miembrosIniciales }: Pro
     }
 
     // Cambiar estado a 'Servidor' (sin modificar tipo_persona)
-    const { data: estadoServidor } = await supabase
+    let { data: estadoServidor } = await supabase
       .from('estados_persona')
       .select('id')
-      .ilike('nombre', 'servidor')
+      .ilike('nombre', '%servidor%')
       .maybeSingle()
+    if (!estadoServidor) {
+      // Create it if it doesn't exist yet
+      const { data: created } = await supabase
+        .from('estados_persona')
+        .insert({ nombre: 'Servidor', descripcion: 'Sirve activamente en la iglesia', color: 'orange', orden: 4, activo: true })
+        .select('id')
+        .single()
+      estadoServidor = created
+    }
     if (estadoServidor?.id) {
       await supabase
         .from('personas')
