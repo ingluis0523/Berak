@@ -70,7 +70,12 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
   const router = useRouter()
 
   const [miembros, setMiembros] = useState<GrupoMiembro[]>(miembrosIniciales)
-  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set())
+  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(() => {
+    const currentLabel = getMonthLabel(new Date().toISOString().split('T')[0])
+    const allMonths = new Set(eventosIniciales.map((e) => getMonthLabel(e.fecha)))
+    allMonths.delete(currentLabel)
+    return allMonths
+  })
   const [searchPersona, setSearchPersona] = useState('')
   const [personas, setPersonas] = useState<Pick<Persona, 'id' | 'nombres' | 'apellidos'>[]>([])
   const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null)
