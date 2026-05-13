@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Pencil, UserPlus, UserMinus, CalendarCheck, ChevronDown, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Pencil, UserPlus, UserMinus, CalendarCheck, ChevronDown, ChevronRight, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -382,12 +382,22 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                                       {e.estado}
                                     </Badge>
                                     {e.estado !== 'cancelado' && (
-                                      <Button variant="outline" size="sm" asChild className="gap-1 shrink-0">
-                                        <Link href={`/asistencias/${e.id}`}>
-                                          <CalendarCheck className="h-3.5 w-3.5" />
-                                          Asistencia
-                                        </Link>
-                                      </Button>
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        {e.estado === 'realizado' && (
+                                          <Button variant="ghost" size="sm" asChild className="gap-1">
+                                            <Link href={`/eventos/${e.id}`}>
+                                              <Eye className="h-3.5 w-3.5" />
+                                              Resumen
+                                            </Link>
+                                          </Button>
+                                        )}
+                                        <Button variant="outline" size="sm" asChild className="gap-1">
+                                          <Link href={`/asistencias/${e.id}`}>
+                                            <CalendarCheck className="h-3.5 w-3.5" />
+                                            Asistencia
+                                          </Link>
+                                        </Button>
+                                      </div>
                                     )}
                                   </div>
                                 ))}

@@ -70,11 +70,22 @@ export default async function EventoDetallePage({ params }: PageProps) {
 
   const asist = (asistencias ?? []) as (Asistencia & { persona: Persona | null })[]
 
-  const asistio = asist.filter((a) => a.estado === 'asistio')
+  const asistio  = asist.filter((a) => a.estado === 'asistio')
   const noAsistio = asist.filter((a) => a.estado === 'no_asistio')
   const visitantes = asist.filter((a) => a.estado === 'visitante' || a.estado === 'primera_vez')
-  const total = asist.length
-  const pct = total > 0 ? Math.round((asistio.length / total) * 100) : 0
+
+  // Total = group members count (if event has group); fallback to asistencia records
+  let totalMiembros = asist.length
+  if (ev.grupo_id) {
+    const { count } = await supabase
+      .from('grupo_miembros')
+      .select('*', { count: 'exact', head: true })
+      .eq('grupo_id', ev.grupo_id)
+      .eq('activo', true)
+    if (count != null && count > 0) totalMiembros = count
+  }
+
+  const pct = totalMiembros > 0 ? Math.round((asistio.length / totalMiembros) * 100) : 0
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -154,8 +165,8 @@ export default async function EventoDetallePage({ params }: PageProps) {
         />
         <InfoCard
           icon={<ClipboardCheck className="h-4 w-4 text-blue-600" />}
-          label="Registros"
-          value={String(total)}
+          label={ev.grupo_id ? 'Miembros' : 'Registros'}
+          value={String(totalMiembros)}
         />
       </div>
 
@@ -170,7 +181,7 @@ export default async function EventoDetallePage({ params }: PageProps) {
       )}
 
       {/* Attendance summary */}
-      {total > 0 && (
+      {asist.length > 0 && (
         <Card>
           <CardContent className="p-5 space-y-4">
             <h2 className="font-semibold text-gray-900">Resumen de asistencia</h2>
@@ -205,7 +216,7 @@ export default async function EventoDetallePage({ params }: PageProps) {
             {/* Progress bar */}
             <div className="space-y-1">
               <div className="flex justify-between text-xs text-gray-500">
-                <span>{asistio.length} de {total} registros asistieron</span>
+                <span>{asistio.length} de {totalMiembros} {ev.grupo_id ? 'miembros' : 'registros'} asistieron</span>
                 <span>{pct}%</span>
               </div>
               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -272,7 +283,7 @@ export default async function EventoDetallePage({ params }: PageProps) {
         </Card>
       )}
 
-      {total === 0 && (
+      {asist.length === 0 && (
         <div className="py-12 text-center text-gray-400">
           <ClipboardCheck className="mx-auto mb-3 h-10 w-10 opacity-30" />
           <p>No hay registros de asistencia para este evento</p>

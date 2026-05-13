@@ -42,7 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Asistencias',  href: '/asistencias',   icon: ClipboardCheck,  section: 'operativo' },
   { label: 'Reportes',     href: '/reportes',      icon: BarChart3,       section: 'reportes' },
   { label: 'Usuarios',     href: '/usuarios',      icon: BookOpen,        section: 'sistema' },
-  { label: 'Roles',        href: '/roles',         icon: ShieldCheck,     section: 'sistema', adminOnly: true },
+  { label: 'Roles',        href: '/roles',         icon: ShieldCheck,     section: 'sistema' },
   { label: 'Configuración',href: '/configuracion', icon: Settings,        section: 'sistema', adminOnly: true },
 ]
 
