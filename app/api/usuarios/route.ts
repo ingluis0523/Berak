@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { sendWelcomeEmail } from '@/lib/email'
 
 export async function POST(request: Request) {
   // Verificar que el usuario que llama está autenticado
@@ -58,6 +59,22 @@ export async function POST(request: Request) {
     await adminClient.auth.admin.deleteUser(userId)
     return NextResponse.json({ error: dbError.message }, { status: 500 })
   }
+
+  // Obtener nombre de la persona vinculada para personalizar el email
+  let nombrePersona: string | undefined
+  if (persona_id) {
+    const { data: persona } = await adminClient
+      .from('personas')
+      .select('nombres')
+      .eq('id', persona_id)
+      .maybeSingle()
+    if (persona?.nombres) nombrePersona = persona.nombres
+  }
+
+  // Enviar email de bienvenida (no bloqueante — si falla, el usuario ya fue creado)
+  sendWelcomeEmail({ to: email, email, password, nombre: nombrePersona }).catch(
+    (err) => console.error('Welcome email failed:', err)
+  )
 
   return NextResponse.json({ success: true, userId })
 }
