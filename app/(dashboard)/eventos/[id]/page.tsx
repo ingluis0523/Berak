@@ -97,11 +97,19 @@ export default async function EventoDetallePage({ params, searchParams }: PagePr
   const noAsistio = asist.filter((a) => a.estado === 'no_asistio')
   const visitantes = asist.filter((a) => a.estado === 'visitante' || a.estado === 'primera_vez')
 
-  // Total = group members count (event group or filtered group); fallback to asistencia records
+  // Total = group members count (event group or filtered group)
+  // For global events with no group context → count all unique active members across all groups
   let totalMiembros = asist.length
   if (grupoContexto) {
     const memberCount = memberIdsForFilter?.length ?? 0
     if (memberCount > 0) totalMiembros = memberCount
+  } else if (ev.grupo_id === null) {
+    const { data: allMembers } = await supabase
+      .from('grupo_miembros')
+      .select('persona_id')
+      .eq('activo', true)
+    const uniqueIds = new Set((allMembers ?? []).map((m) => m.persona_id as string))
+    if (uniqueIds.size > 0) totalMiembros = uniqueIds.size
   }
 
   const pct = totalMiembros > 0 ? Math.round((asistio.length / totalMiembros) * 100) : 0

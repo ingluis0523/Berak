@@ -16,7 +16,7 @@ export interface CurrentUser {
   canSeeModule: (module: string) => boolean
 }
 
-const ADMIN_ROLES = ['Super Admin', 'Pastor', 'Secretaria']
+const ADMIN_ROLES = ['super admin', 'pastor', 'secretaria', 'administrador', 'admin', 'lider', 'líder']
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const supabase = await createClient()
@@ -49,7 +49,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     })
   }
 
-  const is_admin = !!(rol && ADMIN_ROLES.includes(rol.nombre))
+  const is_admin = !!(rol && ADMIN_ROLES.includes(rol.nombre.toLowerCase()))
 
   // If role has no permissions configured → treat as unrestricted (show all non-admin modules).
   // If role has explicit permissions → only the modules whose "_leer" perm is present.

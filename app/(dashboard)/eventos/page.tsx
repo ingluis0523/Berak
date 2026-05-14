@@ -21,11 +21,14 @@ import { NuevoEventoButton } from './nuevo-evento-button'
 
 export const metadata: Metadata = { title: 'Eventos' }
 
+const PER_PAGE = 10
+
 interface PageProps {
   searchParams: Promise<{
     search?: string
     fecha?: string
     tab?: string
+    page?: string
   }>
 }
 
@@ -34,6 +37,7 @@ export default async function EventosPage({ searchParams }: PageProps) {
   const search = params.search?.trim() ?? ''
   const fecha = params.fecha?.trim() ?? ''
   const tab = params.tab ?? 'proximos'
+  const page = Math.max(1, parseInt(params.page ?? '1', 10))
 
   const supabase = await createClient()
 
@@ -128,17 +132,17 @@ export default async function EventosPage({ searchParams }: PageProps) {
 
         {/* ── Próximos ──────────────────────────────────────────────────────── */}
         <TabsContent value="proximos">
-          <EventosTable eventos={proximos} />
+          <EventosTable eventos={proximos} page={tab === 'proximos' ? page : 1} search={search} fecha={fecha} tab="proximos" />
         </TabsContent>
 
         {/* ── Realizados ────────────────────────────────────────────────────── */}
         <TabsContent value="realizados">
-          <EventosTable eventos={realizados} />
+          <EventosTable eventos={realizados} page={tab === 'realizados' ? page : 1} search={search} fecha={fecha} tab="realizados" />
         </TabsContent>
 
         {/* ── Cancelados ────────────────────────────────────────────────────── */}
         <TabsContent value="cancelados">
-          <EventosTable eventos={cancelados} />
+          <EventosTable eventos={cancelados} page={tab === 'cancelados' ? page : 1} search={search} fecha={fecha} tab="cancelados" />
         </TabsContent>
 
         {/* ── Plantillas ────────────────────────────────────────────────────── */}
@@ -170,7 +174,19 @@ export default async function EventosPage({ searchParams }: PageProps) {
 
 // ─── Eventos Table ────────────────────────────────────────────────────────────
 
-function EventosTable({ eventos }: { eventos: Evento[] }) {
+function EventosTable({
+  eventos,
+  page,
+  search,
+  fecha,
+  tab,
+}: {
+  eventos: Evento[]
+  page: number
+  search: string
+  fecha: string
+  tab: string
+}) {
   if (eventos.length === 0) {
     return (
       <div className="py-16 text-center text-gray-400">
@@ -180,7 +196,13 @@ function EventosTable({ eventos }: { eventos: Evento[] }) {
     )
   }
 
+  const totalPages = Math.max(1, Math.ceil(eventos.length / PER_PAGE))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const slice = eventos.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
+  const baseHref = `?search=${encodeURIComponent(search)}&fecha=${fecha}&tab=${tab}`
+
   return (
+    <div className="space-y-3">
     <Card>
       <CardContent className="p-0">
         <Table>
@@ -195,7 +217,7 @@ function EventosTable({ eventos }: { eventos: Evento[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {eventos.map((e) => {
+            {slice.map((e) => {
               const grupoRaw = e.grupo as unknown
               const grupo = (Array.isArray(grupoRaw) ? grupoRaw[0] : grupoRaw) as { id: string; nombre: string } | null
               return (
@@ -227,8 +249,8 @@ function EventosTable({ eventos }: { eventos: Evento[] }) {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon-sm" asChild title="Ver asistencia">
-                        <Link href={`/asistencias/${e.id}`}>
+                      <Button variant="ghost" size="icon-sm" asChild title="Ver detalle">
+                        <Link href={`/eventos/${e.id}`}>
                           <Eye size={14} />
                         </Link>
                       </Button>
@@ -259,6 +281,25 @@ function EventosTable({ eventos }: { eventos: Evento[] }) {
         </Table>
       </CardContent>
     </Card>
+
+    {totalPages > 1 && (
+      <div className="flex items-center justify-between text-sm text-gray-500">
+        <span>Página {safePage} de {totalPages} · {eventos.length} eventos</span>
+        <div className="flex gap-2">
+          {safePage > 1 && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`${baseHref}&page=${safePage - 1}`}>Anterior</Link>
+            </Button>
+          )}
+          {safePage < totalPages && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`${baseHref}&page=${safePage + 1}`}>Siguiente</Link>
+            </Button>
+          )}
+        </div>
+      </div>
+    )}
+    </div>
   )
 }
 

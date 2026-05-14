@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ArrowLeft, CalendarCog, CheckCircle } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ function generarFechas(plantilla: {
 interface FormState {
   nombre: string
   grupo_id: string
+  todos_grupos: boolean
   frecuencia: FrecuenciaEvento
   intervalo: number
   fecha_inicio: string
@@ -65,6 +67,7 @@ interface FormState {
 const INITIAL: FormState = {
   nombre: '',
   grupo_id: '',
+  todos_grupos: false,
   frecuencia: 'semanal',
   intervalo: 1,
   fecha_inicio: '',
@@ -119,12 +122,14 @@ export default function NuevaPlantillaPage() {
 
     setLoading(true)
 
+    const grupoIdFinal = form.todos_grupos ? null : (form.grupo_id || null)
+
     // 1. Insert plantilla
     const { data: plantilla, error: plantillaError } = await supabase
       .from('eventos_plantilla')
       .insert({
         nombre: form.nombre.trim(),
-        grupo_id: form.grupo_id || null,
+        grupo_id: grupoIdFinal,
         frecuencia: form.frecuencia,
         intervalo: form.intervalo,
         fecha_inicio: form.fecha_inicio,
@@ -153,7 +158,7 @@ export default function NuevaPlantillaPage() {
 
     const eventosInsert = fechas.map((fecha) => ({
       plantilla_id: plantilla.id,
-      grupo_id: form.grupo_id || null,
+      grupo_id: grupoIdFinal,
       nombre: form.nombre.trim(),
       fecha: fecha.toISOString().split('T')[0],
       hora_inicio: form.hora_inicio || null,
@@ -239,22 +244,34 @@ export default function NuevaPlantillaPage() {
             {/* Grupo */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-gray-700">Grupo (opcional)</label>
-              <Select
-                value={form.grupo_id || 'ninguno'}
-                onValueChange={(v) => set('grupo_id', v === 'ninguno' ? '' : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sin grupo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ninguno">Sin grupo</SelectItem>
-                  {grupos.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2 mb-2">
+                <Checkbox
+                  id="todos_grupos"
+                  checked={form.todos_grupos}
+                  onCheckedChange={(v) => set('todos_grupos', Boolean(v))}
+                />
+                <label htmlFor="todos_grupos" className="text-sm text-gray-600 cursor-pointer">
+                  Aplicar a todos los grupos (evento global)
+                </label>
+              </div>
+              {!form.todos_grupos && (
+                <Select
+                  value={form.grupo_id || 'ninguno'}
+                  onValueChange={(v) => set('grupo_id', v === 'ninguno' ? '' : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin grupo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ninguno">Sin grupo</SelectItem>
+                    {grupos.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             {/* Frecuencia */}
