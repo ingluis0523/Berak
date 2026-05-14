@@ -300,10 +300,34 @@ export function AsistenciaClient({
 
   async function handleFinalizar() {
     setFinalizing(true)
+
+    // Cancel all pending debounce timers and flush unsaved attendance in one batch.
+    // This prevents a race condition where the user clicks Finalizar before the
+    // 500ms debounce fires, leaving records unsaved when the component unmounts.
+    Object.values(debounceTimers.current).forEach(clearTimeout)
+    debounceTimers.current = {}
+
+    const pendingRows = rows.filter((r) => r.estado !== null)
+    if (pendingRows.length > 0) {
+      await supabase
+        .from('asistencias')
+        .upsert(
+          pendingRows.map((r) => ({
+            evento_id: evento.id,
+            persona_id: r.personaId,
+            estado: r.estado!,
+            es_visitante: false,
+            registrado_por: usuarioId,
+          })),
+          { onConflict: 'evento_id,persona_id', ignoreDuplicates: false }
+        )
+    }
+
     await supabase
       .from('eventos')
       .update({ estado: 'realizado' })
       .eq('id', evento.id)
+
     setFinalizing(false)
     // Go to event summary; include grupo_id param so stats show this group's data
     const params = grupoOrigenId && !evento.grupo_id ? `?grupo_id=${grupoOrigenId}` : ''
@@ -363,8 +387,8 @@ export function AsistenciaClient({
         </div>
       </div>
 
-      {/* Search personas (for events without group) */}
-      {!evento.grupo_id && (
+      {/* Search personas — only for truly ungrouped events (no group context at all) */}
+      {!evento.grupo_id && !grupoOrigenId && (
         <div className="space-y-2">
           <p className="text-sm font-medium text-gray-700">
             Este evento no tiene grupo asignado. Agrega personas individualmente:
@@ -430,7 +454,7 @@ export function AsistenciaClient({
           </ul>
         </div>
       ) : (
-        !evento.grupo_id && (
+        !evento.grupo_id && !grupoOrigenId && (
           <div className="py-12 text-center text-gray-400">
             <p>Busca y agrega personas para registrar su asistencia</p>
           </div>
