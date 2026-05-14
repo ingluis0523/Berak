@@ -40,17 +40,40 @@ export default async function EventosPage({ searchParams }: PageProps) {
   const page = Math.max(1, parseInt(params.page ?? '1', 10))
 
   const supabase = await createClient()
+  const { getCurrentUser } = await import('@/lib/current-user')
+  const currentUser = await getCurrentUser()
 
-  // Load all events and templates in parallel
+  // Resolve visible grupo IDs for non-admin users scoped to a red
+  let visibleGrupoIds: string[] | null = null
+  if (!currentUser?.is_admin && currentUser?.red_id) {
+    const { data: gruposEnRed } = await supabase
+      .from('grupos')
+      .select('id')
+      .eq('red_id', currentUser.red_id)
+      .is('deleted_at', null)
+    visibleGrupoIds = (gruposEnRed ?? []).map((g) => g.id)
+  }
+
+  // Build eventos query: non-admins see global events + events for their red's grupos
+  let eventosQuery = supabase
+    .from('eventos')
+    .select('*, grupo:grupos(id,nombre)')
+    .order('fecha', { ascending: false })
+
+  if (visibleGrupoIds !== null) {
+    if (visibleGrupoIds.length > 0) {
+      eventosQuery = eventosQuery.or(`grupo_id.is.null,grupo_id.in.(${visibleGrupoIds.join(',')})`)
+    } else {
+      eventosQuery = eventosQuery.is('grupo_id', null)  // only global events
+    }
+  }
+
   const [
     { data: eventosRaw },
     { data: plantillasRaw },
     { data: grupos },
   ] = await Promise.all([
-    supabase
-      .from('eventos')
-      .select('*, grupo:grupos(id,nombre)')
-      .order('fecha', { ascending: false }),
+    eventosQuery,
     supabase
       .from('eventos_plantilla')
       .select('*, grupo:grupos(id,nombre)')

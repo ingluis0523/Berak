@@ -50,6 +50,29 @@ export default async function PersonasPage({ searchParams }: PageProps) {
   const to = from + PER_PAGE - 1
 
   const supabase = await createClient()
+  const { getCurrentUser } = await import('@/lib/current-user')
+  const currentUser = await getCurrentUser()
+
+  // For non-admin users scoped to a red, collect the persona IDs visible to them
+  let visiblePersonaIds: string[] | null = null
+  if (!currentUser?.is_admin && currentUser?.red_id) {
+    const { data: gruposEnRed } = await supabase
+      .from('grupos')
+      .select('id')
+      .eq('red_id', currentUser.red_id)
+      .is('deleted_at', null)
+    const grupoIds = (gruposEnRed ?? []).map((g) => g.id)
+    if (grupoIds.length > 0) {
+      const { data: miembroRows } = await supabase
+        .from('grupo_miembros')
+        .select('persona_id')
+        .in('grupo_id', grupoIds)
+        .eq('activo', true)
+      visiblePersonaIds = [...new Set((miembroRows ?? []).map((m) => m.persona_id as string))]
+    } else {
+      visiblePersonaIds = []
+    }
+  }
 
   // Load estado options for filter
   const { data: estados } = await supabase
@@ -79,6 +102,16 @@ export default async function PersonasPage({ searchParams }: PageProps) {
   }
   if (tipoFilter) {
     query = query.eq('tipo_persona', tipoFilter as TipoPersona)
+  }
+
+  // Apply red-scoping filter
+  if (visiblePersonaIds !== null) {
+    if (visiblePersonaIds.length > 0) {
+      query = query.in('id', visiblePersonaIds)
+    } else {
+      // User is in a red with no grupos → empty result
+      query = query.in('id', ['00000000-0000-0000-0000-000000000000'])
+    }
   }
 
   const { data: personas, count } = await query
