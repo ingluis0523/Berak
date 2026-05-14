@@ -6,7 +6,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const user = await getCurrentUser()
   return (
     <div className="flex h-screen overflow-hidden bg-[#F0F4F8]">
-      <Sidebar isAdmin={user?.is_admin ?? false} />
+      <Sidebar
+        isAdmin={user?.is_admin ?? false}
+        canSeeModule={(m) => user?.canSeeModule(m) ?? false}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-y-auto p-5">

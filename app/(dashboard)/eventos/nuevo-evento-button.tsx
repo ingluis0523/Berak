@@ -74,32 +74,27 @@ export function NuevoEventoButton() {
     setLoading(true)
 
     if (form.todos_grupos) {
-      const { data: gruposActivos, error: fetchError } = await supabase
-        .from('grupos')
+      // Create a single global event (grupo_id = null) visible to all groups
+      const { data, error: insertError } = await supabase
+        .from('eventos')
+        .insert({
+          nombre: form.nombre.trim(),
+          grupo_id: null,
+          fecha: form.fecha,
+          hora_inicio: form.hora_inicio || null,
+          hora_fin: form.hora_fin || null,
+          estado: 'programado',
+        })
         .select('id')
-        .is('deleted_at', null)
-        .eq('estado', true)
+        .single()
 
-      if (fetchError) { setError(fetchError.message); setLoading(false); return }
-
-      const rows = (gruposActivos ?? []).map((g) => ({
-        nombre: form.nombre.trim(),
-        grupo_id: g.id,
-        fecha: form.fecha,
-        hora_inicio: form.hora_inicio || null,
-        hora_fin: form.hora_fin || null,
-        estado: 'programado' as const,
-      }))
-
-      if (rows.length === 0) { setError('No hay grupos activos.'); setLoading(false); return }
-
-      const { error: insertError } = await supabase.from('eventos').insert(rows)
       if (insertError) { setError(insertError.message); setLoading(false); return }
 
       setLoading(false)
       setOpen(false)
       setForm(EMPTY)
       router.refresh()
+      if (data?.id) router.push(`/eventos/${data.id}`)
       return
     }
 

@@ -6,6 +6,7 @@ import { AsistenciaClient } from './asistencia-client'
 
 interface PageProps {
   params: Promise<{ eventoId: string }>
+  searchParams: Promise<{ grupo_id?: string }>
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -19,8 +20,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return { title: data ? `Asistencia · ${data.nombre}` : 'Asistencia' }
 }
 
-export default async function AsistenciaPage({ params }: PageProps) {
+export default async function AsistenciaPage({ params, searchParams }: PageProps) {
   const { eventoId } = await params
+  const { grupo_id: grupoFiltro } = await searchParams
   const supabase = await createClient()
 
   // Load event
@@ -34,28 +36,45 @@ export default async function AsistenciaPage({ params }: PageProps) {
 
   const grupoId = evento.grupo_id as string | null
 
+  // For global events opened from a group, use the grupo_id param as context
+  const grupoParaMiembros = grupoId ?? grupoFiltro ?? null
+
   // Load existing attendances
   const { data: asistenciasExistentes } = await supabase
     .from('asistencias')
     .select('*, persona:personas(id,nombres,apellidos,tipo_persona,foto_url)')
     .eq('evento_id', eventoId)
 
-  // Load members: if event has a group, load group members; otherwise empty (user will search)
+  // Load members: use the resolved group (event's group or URL param for global events)
   let miembros: (GrupoMiembro & { persona: Persona })[] = []
 
-  if (grupoId) {
+  if (grupoParaMiembros) {
     const { data: miembrosData } = await supabase
       .from('grupo_miembros')
       .select('*, persona:personas(id,nombres,apellidos,tipo_persona,foto_url)')
-      .eq('grupo_id', grupoId)
+      .eq('grupo_id', grupoParaMiembros)
       .eq('activo', true)
       .order('created_at')
 
     miembros = (miembrosData ?? []) as (GrupoMiembro & { persona: Persona })[]
   }
 
+  // Load group info when event is global but a group filter is given
+  let grupoOrigen: { id: string; nombre: string } | null = null
+  if (!grupoId && grupoFiltro) {
+    const { data: g } = await supabase
+      .from('grupos')
+      .select('id, nombre')
+      .eq('id', grupoFiltro)
+      .single()
+    grupoOrigen = g
+  }
+
   // Get current user id for registrado_por
   const { data: { user } } = await supabase.auth.getUser()
+
+  const grupoRaw = evento.grupo
+  const grupo = (Array.isArray(grupoRaw) ? grupoRaw[0] : grupoRaw) as { id: string; nombre: string } | null
 
   return (
     <AsistenciaClient
@@ -66,9 +85,10 @@ export default async function AsistenciaPage({ params }: PageProps) {
         hora_inicio: evento.hora_inicio,
         hora_fin: evento.hora_fin,
         estado: evento.estado,
-        grupo: evento.grupo as { id: string; nombre: string } | null,
+        grupo: grupo ?? grupoOrigen,
         grupo_id: grupoId,
       }}
+      grupoOrigenId={grupoFiltro ?? grupoId}
       miembrosIniciales={miembros}
       asistenciasIniciales={(asistenciasExistentes ?? []) as (Asistencia & { persona: Persona | null })[]}
       usuarioId={user?.id ?? null}

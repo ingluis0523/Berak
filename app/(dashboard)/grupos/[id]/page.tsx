@@ -40,21 +40,31 @@ export default async function GrupoPage({ params }: Props) {
     .eq('activo', true)
     .order('fecha_ingreso', { ascending: false })
 
+  // Fetch group events AND global events (grupo_id IS NULL)
   const { data: eventos } = await supabase
     .from('eventos')
-    .select('id, nombre, fecha, hora_inicio, hora_fin, estado, descripcion')
-    .eq('grupo_id', id)
+    .select('id, nombre, fecha, hora_inicio, hora_fin, estado, descripcion, grupo_id')
+    .or(`grupo_id.eq.${id},grupo_id.is.null`)
     .order('fecha', { ascending: false })
     .limit(50)
 
-  // Fetch attendance counts (asistio only, non-visitor) per event
   const eventoIds = (eventos ?? []).map((e) => e.id)
+
+  // Get this group's member IDs to filter attendance stats correctly (also for global events)
+  const { data: miembrosParaStats } = await supabase
+    .from('grupo_miembros')
+    .select('persona_id')
+    .eq('grupo_id', id)
+    .eq('activo', true)
+  const memberIds = (miembrosParaStats ?? []).map((m) => m.persona_id).filter(Boolean)
+
   let asistenciasCountMap: Record<string, number> = {}
-  if (eventoIds.length > 0) {
+  if (eventoIds.length > 0 && memberIds.length > 0) {
     const { data: counts } = await supabase
       .from('asistencias')
       .select('evento_id')
       .in('evento_id', eventoIds)
+      .in('persona_id', memberIds)
       .eq('estado', 'asistio')
       .eq('es_visitante', false)
     counts?.forEach((a) => {

@@ -370,6 +370,9 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                                         {e.hora_inicio && ` · ${e.hora_inicio.slice(0, 5)}`}
                                       </p>
                                     </div>
+                                    {!e.grupo_id && (
+                                      <Badge variant="secondary" className="text-xs shrink-0">Global</Badge>
+                                    )}
                                     <Badge
                                       variant={
                                         e.estado === 'realizado'
@@ -385,14 +388,14 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                                       <div className="flex items-center gap-1.5 shrink-0">
                                         {e.estado === 'realizado' && (
                                           <Button variant="ghost" size="sm" asChild className="gap-1">
-                                            <Link href={`/eventos/${e.id}`}>
+                                            <Link href={`/eventos/${e.id}${!e.grupo_id ? `?grupo_id=${grupo.id}` : ''}`}>
                                               <Eye className="h-3.5 w-3.5" />
                                               Resumen
                                             </Link>
                                           </Button>
                                         )}
                                         <Button variant="outline" size="sm" asChild className="gap-1">
-                                          <Link href={`/asistencias/${e.id}`}>
+                                          <Link href={`/asistencias/${e.id}${!e.grupo_id ? `?grupo_id=${grupo.id}` : ''}`}>
                                             <CalendarCheck className="h-3.5 w-3.5" />
                                             Asistencia
                                           </Link>

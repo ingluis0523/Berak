@@ -29,21 +29,24 @@ interface NavItem {
   href: string
   icon: React.ElementType
   section?: string
+  /** If set, item is only visible when canSeeModule(module) returns true */
+  module?: string
+  /** If true, only admins can see this item regardless of permissions */
   adminOnly?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard',    href: '/dashboard',     icon: LayoutDashboard, section: 'principal' },
-  { label: 'Personas',     href: '/personas',      icon: Users,           section: 'iglesia' },
-  { label: 'Redes',        href: '/redes',         icon: Network,         section: 'iglesia' },
-  { label: 'Grupos',       href: '/grupos',        icon: UsersRound,      section: 'iglesia' },
-  { label: 'Ministerios',  href: '/ministerios',   icon: Church,          section: 'iglesia' },
-  { label: 'Eventos',      href: '/eventos',       icon: CalendarDays,    section: 'operativo' },
-  { label: 'Asistencias',  href: '/asistencias',   icon: ClipboardCheck,  section: 'operativo' },
-  { label: 'Reportes',     href: '/reportes',      icon: BarChart3,       section: 'reportes' },
-  { label: 'Usuarios',     href: '/usuarios',      icon: BookOpen,        section: 'sistema' },
-  { label: 'Roles',        href: '/roles',         icon: ShieldCheck,     section: 'sistema' },
-  { label: 'Configuración',href: '/configuracion', icon: Settings,        section: 'sistema', adminOnly: true },
+  { label: 'Personas',     href: '/personas',      icon: Users,           section: 'iglesia',   module: 'personas' },
+  { label: 'Redes',        href: '/redes',         icon: Network,         section: 'iglesia',   module: 'redes' },
+  { label: 'Grupos',       href: '/grupos',        icon: UsersRound,      section: 'iglesia',   module: 'grupos' },
+  { label: 'Ministerios',  href: '/ministerios',   icon: Church,          section: 'iglesia',   module: 'ministerios' },
+  { label: 'Eventos',      href: '/eventos',       icon: CalendarDays,    section: 'operativo', module: 'eventos' },
+  { label: 'Asistencias',  href: '/asistencias',   icon: ClipboardCheck,  section: 'operativo', module: 'asistencias' },
+  { label: 'Reportes',     href: '/reportes',      icon: BarChart3,       section: 'reportes',  module: 'reportes' },
+  { label: 'Usuarios',     href: '/usuarios',      icon: BookOpen,        section: 'sistema',   module: 'usuarios' },
+  { label: 'Roles',        href: '/roles',         icon: ShieldCheck,     section: 'sistema',   module: 'roles' },
+  { label: 'Configuración',href: '/configuracion', icon: Settings,        section: 'sistema',   adminOnly: true },
 ]
 
 const SECTION_LABELS: Record<string, string> = {
@@ -54,12 +57,21 @@ const SECTION_LABELS: Record<string, string> = {
   sistema:   'Sistema',
 }
 
-export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
+interface SidebarProps {
+  isAdmin: boolean
+  canSeeModule: (module: string) => boolean
+}
+
+export function Sidebar({ isAdmin, canSeeModule }: SidebarProps) {
   const pathname  = usePathname()
   const router    = useRouter()
   const [collapsed, setCollapsed] = useState(false)
 
-  const visibleItems = NAV_ITEMS.filter(i => !i.adminOnly || isAdmin)
+  const visibleItems = NAV_ITEMS.filter((i) => {
+    if (i.adminOnly) return isAdmin
+    if (i.module) return canSeeModule(i.module)
+    return true
+  })
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
 

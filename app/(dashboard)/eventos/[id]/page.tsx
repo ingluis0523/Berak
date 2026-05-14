@@ -24,6 +24,7 @@ import { EventoCancelarButton } from './evento-cancelar-button'
 
 interface PageProps {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ grupo_id?: string }>
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -37,8 +38,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return { title: data?.nombre ?? 'Evento' }
 }
 
-export default async function EventoDetallePage({ params }: PageProps) {
+export default async function EventoDetallePage({ params, searchParams }: PageProps) {
   const { id } = await params
+  const { grupo_id: grupoFiltro } = await searchParams
   const supabase = await createClient()
 
   const { data: evento } = await supabase
@@ -61,28 +63,45 @@ export default async function EventoDetallePage({ params }: PageProps) {
     plantilla: (Array.isArray(plantillaRaw) ? plantillaRaw[0] : plantillaRaw) as { id: string; nombre: string; frecuencia: string } | null,
   }
 
-  // Load attendances
-  const { data: asistencias } = await supabase
+  // For global events opened from a group, filter attendance to that group's members
+  const grupoContexto = ev.grupo_id ?? grupoFiltro ?? null
+  let memberIdsForFilter: string[] | null = null
+
+  if (grupoContexto) {
+    const { data: gm } = await supabase
+      .from('grupo_miembros')
+      .select('persona_id')
+      .eq('grupo_id', grupoContexto)
+      .eq('activo', true)
+    memberIdsForFilter = (gm ?? []).map((m) => m.persona_id as string)
+  }
+
+  // Load attendances — filter by group members for global events
+  let asistQuery = supabase
     .from('asistencias')
     .select('*, persona:personas(id,nombres,apellidos,tipo_persona,foto_url)')
     .eq('evento_id', id)
     .order('created_at')
 
+  if (!ev.grupo_id && memberIdsForFilter && memberIdsForFilter.length > 0) {
+    // Global event: only show records for this group's members (+ visitors)
+    asistQuery = asistQuery.or(
+      `persona_id.in.(${memberIdsForFilter.join(',')}),es_visitante.eq.true,persona_id.is.null`
+    )
+  }
+
+  const { data: asistencias } = await asistQuery
   const asist = (asistencias ?? []) as (Asistencia & { persona: Persona | null })[]
 
-  const asistio  = asist.filter((a) => a.estado === 'asistio')
+  const asistio   = asist.filter((a) => a.estado === 'asistio')
   const noAsistio = asist.filter((a) => a.estado === 'no_asistio')
   const visitantes = asist.filter((a) => a.estado === 'visitante' || a.estado === 'primera_vez')
 
-  // Total = group members count (if event has group); fallback to asistencia records
+  // Total = group members count (event group or filtered group); fallback to asistencia records
   let totalMiembros = asist.length
-  if (ev.grupo_id) {
-    const { count } = await supabase
-      .from('grupo_miembros')
-      .select('*', { count: 'exact', head: true })
-      .eq('grupo_id', ev.grupo_id)
-      .eq('activo', true)
-    if (count != null && count > 0) totalMiembros = count
+  if (grupoContexto) {
+    const memberCount = memberIdsForFilter?.length ?? 0
+    if (memberCount > 0) totalMiembros = memberCount
   }
 
   const pct = totalMiembros > 0 ? Math.round((asistio.length / totalMiembros) * 100) : 0

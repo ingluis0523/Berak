@@ -66,6 +66,8 @@ interface VisitanteRow {
 
 interface Props {
   evento: EventoInfo
+  /** Group to return to when pressing back, and to scope members for global events */
+  grupoOrigenId: string | null
   miembrosIniciales: (GrupoMiembro & { persona: Persona })[]
   asistenciasIniciales: (Asistencia & { persona: Persona | null })[]
   usuarioId: string | null
@@ -75,6 +77,7 @@ interface Props {
 
 export function AsistenciaClient({
   evento,
+  grupoOrigenId,
   miembrosIniciales,
   asistenciasIniciales,
   usuarioId,
@@ -302,7 +305,9 @@ export function AsistenciaClient({
       .update({ estado: 'realizado' })
       .eq('id', evento.id)
     setFinalizing(false)
-    router.push(`/eventos/${evento.id}`)
+    // Go to event summary; include grupo_id param so stats show this group's data
+    const params = grupoOrigenId && !evento.grupo_id ? `?grupo_id=${grupoOrigenId}` : ''
+    router.push(`/eventos/${evento.id}${params}`)
   }
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -314,7 +319,7 @@ export function AsistenciaClient({
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => router.push(evento.grupo_id ? `/grupos/${evento.grupo_id}` : '/eventos')}
+          onClick={() => router.push(grupoOrigenId ? `/grupos/${grupoOrigenId}` : '/eventos')}
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -325,6 +330,11 @@ export function AsistenciaClient({
             {evento.hora_inicio && ` · ${evento.hora_inicio.slice(0, 5)}`}
             {evento.grupo && (
               <> · <span className="font-medium text-gray-700">{evento.grupo.nombre}</span></>
+            )}
+            {!evento.grupo_id && grupoOrigenId && evento.grupo && (
+              <span className="ml-1 text-xs bg-blue-100 text-blue-700 rounded-full px-1.5 py-0.5 font-medium">
+                evento global
+              </span>
             )}
           </p>
         </div>
