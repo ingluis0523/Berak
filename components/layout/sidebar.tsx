@@ -59,10 +59,17 @@ const SECTION_LABELS: Record<string, string> = {
 
 interface SidebarProps {
   isAdmin: boolean
-  canSeeModule: (module: string) => boolean
+  permisos: string[]
 }
 
-export function Sidebar({ isAdmin, canSeeModule }: SidebarProps) {
+export function Sidebar({ isAdmin, permisos }: SidebarProps) {
+  const canSeeModule = (module: string): boolean => {
+    if (isAdmin) return true
+    if (permisos.length === 0) return true
+    return permisos.some(
+      (p) => p === `${module}_leer` || p === `${module}_escribir` || p === `${module}.*` || p === '*'
+    )
+  }
   const pathname  = usePathname()
   const router    = useRouter()
   const [collapsed, setCollapsed] = useState(false)

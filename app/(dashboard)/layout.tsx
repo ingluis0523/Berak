@@ -8,7 +8,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex h-screen overflow-hidden bg-[#F0F4F8]">
       <Sidebar
         isAdmin={user?.is_admin ?? false}
-        canSeeModule={(m) => user?.canSeeModule(m) ?? false}
+        permisos={user?.permisos ?? []}
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
