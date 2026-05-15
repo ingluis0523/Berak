@@ -66,9 +66,19 @@ export function Sidebar({ isAdmin, permisos }: SidebarProps) {
   const canSeeModule = (module: string): boolean => {
     if (isAdmin) return true
     if (permisos.length === 0) return true
-    return permisos.some(
-      (p) => p === `${module}_leer` || p === `${module}_escribir` || p === `${module}.*` || p === '*'
-    )
+    const moduleKeywords: Record<string, string[]> = {
+      personas:    ['personas'],
+      redes:       ['grupos', 'redes'],
+      grupos:      ['grupos', 'miembros'],
+      ministerios: ['personas', 'ministerios'],
+      eventos:     ['eventos'],
+      asistencias: ['asistencias'],
+      reportes:    ['reportes'],
+      usuarios:    ['usuarios'],
+      roles:       ['roles'],
+    }
+    const keywords = moduleKeywords[module] ?? [module]
+    return permisos.some((p) => keywords.some((kw) => p.includes(kw)))
   }
   const pathname  = usePathname()
   const router    = useRouter()
