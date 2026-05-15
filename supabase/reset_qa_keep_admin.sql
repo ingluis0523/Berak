@@ -25,30 +25,29 @@ BEGIN
   END IF;
 END $$;
 
--- ── Paso 1: Deshabilitar FKs/triggers ────────────────────────────────────────
+-- ── Paso 1: Deshabilitar triggers/FKs ────────────────────────────────────────
+-- NOTA: session_replication_role = replica solo afecta DML (DELETE/UPDATE/INSERT),
+-- no TRUNCATE. Por eso usamos DELETE FROM en lugar de TRUNCATE para las tablas
+-- que tienen FKs cruzadas.
 SET session_replication_role = replica;
 
--- ── Paso 2: Limpiar datos de negocio ─────────────────────────────────────────
--- Sin CASCADE para evitar que se propague a public.usuarios.
--- session_replication_role = replica deshabilita la verificación de FKs.
-
--- Limpiar FK hacia personas en public.usuarios del usuario principal
--- para que TRUNCATE personas no intente cascadear hacia esa fila.
+-- ── Paso 2: Limpiar datos de negocio con DELETE (respeta replica mode) ────────
+-- Limpiar FK de persona_id del usuario principal antes de borrar personas
 UPDATE public.usuarios
   SET persona_id = NULL
   WHERE id IN (SELECT uid FROM _main_user);
 
-TRUNCATE TABLE asistencias;
-TRUNCATE TABLE eventos;
-TRUNCATE TABLE eventos_plantilla;
-TRUNCATE TABLE persona_ministerios;
-TRUNCATE TABLE grupo_miembros;
-TRUNCATE TABLE ministerios;
-TRUNCATE TABLE grupos;
-TRUNCATE TABLE redes;
-TRUNCATE TABLE personas;
+DELETE FROM asistencias;
+DELETE FROM eventos;
+DELETE FROM eventos_plantilla;
+DELETE FROM persona_ministerios;
+DELETE FROM grupo_miembros;
+DELETE FROM ministerios;
+DELETE FROM grupos;
+DELETE FROM redes;
+DELETE FROM personas;
 
--- Borrar usuarios secundarios (el principal ya tiene persona_id = NULL)
+-- Borrar usuarios secundarios
 DELETE FROM public.usuarios
   WHERE id NOT IN (SELECT uid FROM _main_user);
 
@@ -85,7 +84,7 @@ DELETE FROM auth.audit_log_entries;
 DELETE FROM auth.users
   WHERE id NOT IN (SELECT uid FROM _main_user);
 
--- ── Restaurar FKs/triggers ────────────────────────────────────────────────────
+-- ── Restaurar triggers/FKs ────────────────────────────────────────────────────
 SET session_replication_role = DEFAULT;
 
 -- ── Paso 4: Limpiar roles/permisos preservando los del principal ──────────────
@@ -98,10 +97,10 @@ DELETE FROM rol_permisos
 DELETE FROM roles
   WHERE id NOT IN (SELECT rol_id FROM _main_user WHERE rol_id IS NOT NULL);
 
-TRUNCATE TABLE reglas_automatizacion;
+DELETE FROM reglas_automatizacion;
 
 -- ── Paso 5: Re-insertar catálogo de estados de persona ────────────────────────
-TRUNCATE TABLE estados_persona CASCADE;
+DELETE FROM estados_persona;
 
 INSERT INTO estados_persona (nombre, descripcion, color, orden) VALUES
   ('nuevo',     'Primera vez registrado',             'blue',   1),
@@ -113,7 +112,7 @@ INSERT INTO estados_persona (nombre, descripcion, color, orden) VALUES
   ('inactivo',  'No ha asistido recientemente',       'gray',   7);
 
 -- ── Paso 6: Re-insertar catálogo de permisos ──────────────────────────────────
-TRUNCATE TABLE permisos CASCADE;
+DELETE FROM permisos;
 
 INSERT INTO permisos (nombre, modulo, descripcion) VALUES
   ('ver_personas',           'personas',    'Ver lista y detalle de personas'),
