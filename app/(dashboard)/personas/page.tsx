@@ -84,9 +84,7 @@ export default async function PersonasPage({ searchParams }: PageProps) {
       } else {
         visiblePersonaIds = []
       }
-    } else {
-      // Non-admin with no red and no groups → show nothing
-      visiblePersonaIds = []
+    // else: no red assignment → no filter (administrative user not tied to a red)
     }
   }
 
