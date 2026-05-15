@@ -8,7 +8,7 @@
 -- ADVERTENCIA: Irreversible. Solo usar en entornos de prueba.
 -- ═══════════════════════════════════════════════════════════════════════════════
 
--- ── Paso 0: Guardar datos del usuario principal en tabla temporal ─────────────
+-- ── Paso 0: Guardar datos del usuario principal ───────────────────────────────
 DROP TABLE IF EXISTS _main_user;
 CREATE TEMP TABLE _main_user AS
 SELECT
@@ -25,21 +25,30 @@ BEGIN
   END IF;
 END $$;
 
--- ── Paso 1: Deshabilitar FKs globalmente (evita conflictos de orden) ──────────
+-- ── Paso 1: Deshabilitar FKs/triggers ────────────────────────────────────────
 SET session_replication_role = replica;
 
 -- ── Paso 2: Limpiar datos de negocio ─────────────────────────────────────────
-TRUNCATE TABLE asistencias         CASCADE;
-TRUNCATE TABLE eventos             CASCADE;
-TRUNCATE TABLE eventos_plantilla   CASCADE;
-TRUNCATE TABLE persona_ministerios CASCADE;
-TRUNCATE TABLE grupo_miembros      CASCADE;
-TRUNCATE TABLE ministerios         CASCADE;
-TRUNCATE TABLE grupos              CASCADE;
-TRUNCATE TABLE redes               CASCADE;
-TRUNCATE TABLE personas            CASCADE;
+-- Sin CASCADE para evitar que se propague a public.usuarios.
+-- session_replication_role = replica deshabilita la verificación de FKs.
 
--- Borrar usuarios secundarios (preservar el principal)
+-- Limpiar FK hacia personas en public.usuarios del usuario principal
+-- para que TRUNCATE personas no intente cascadear hacia esa fila.
+UPDATE public.usuarios
+  SET persona_id = NULL
+  WHERE id IN (SELECT uid FROM _main_user);
+
+TRUNCATE TABLE asistencias;
+TRUNCATE TABLE eventos;
+TRUNCATE TABLE eventos_plantilla;
+TRUNCATE TABLE persona_ministerios;
+TRUNCATE TABLE grupo_miembros;
+TRUNCATE TABLE ministerios;
+TRUNCATE TABLE grupos;
+TRUNCATE TABLE redes;
+TRUNCATE TABLE personas;
+
+-- Borrar usuarios secundarios (el principal ya tiene persona_id = NULL)
 DELETE FROM public.usuarios
   WHERE id NOT IN (SELECT uid FROM _main_user);
 
@@ -76,7 +85,7 @@ DELETE FROM auth.audit_log_entries;
 DELETE FROM auth.users
   WHERE id NOT IN (SELECT uid FROM _main_user);
 
--- ── Restaurar FKs ─────────────────────────────────────────────────────────────
+-- ── Restaurar FKs/triggers ────────────────────────────────────────────────────
 SET session_replication_role = DEFAULT;
 
 -- ── Paso 4: Limpiar roles/permisos preservando los del principal ──────────────
@@ -150,7 +159,7 @@ DROP TABLE IF EXISTS _main_user;
 -- FIN
 -- El usuario iglesiaapostolicajcreina@gmail.com conserva:
 --   ✓ Su cuenta en auth.users (no pierde el login)
---   ✓ Su registro en public.usuarios
+--   ✓ Su fila en public.usuarios (con persona_id = NULL)
 --   ✓ Su rol asignado
 --   ✓ Todos los permisos re-asignados al rol
 --
