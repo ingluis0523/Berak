@@ -55,36 +55,54 @@ export default async function PersonasPage({ searchParams }: PageProps) {
 
   // Scope visible personas by red/group unless user has full access.
   const hasFullAccess = currentUser?.is_admin || currentUser?.hasPermission('acceso_todas_redes')
+  const hasRole = !!currentUser?.rol
   let visiblePersonaIds: string[] | null = null
   if (!hasFullAccess) {
-    const liderGrupoIds = currentUser?.lider_grupo_ids ?? []
-    if (liderGrupoIds.length > 0) {
-      // User leads at least one group → show only those members
-      const { data: miembroRows } = await supabase
-        .from('grupo_miembros')
-        .select('persona_id')
-        .in('grupo_id', liderGrupoIds)
-        .eq('activo', true)
-      visiblePersonaIds = [...new Set((miembroRows ?? []).map((m) => m.persona_id as string))]
-    } else if (currentUser?.red_id) {
-      // No groups led but has a red → show all in the red
-      const { data: gruposEnRed } = await supabase
-        .from('grupos')
-        .select('id')
-        .eq('red_id', currentUser.red_id)
-        .is('deleted_at', null)
-      const grupoIds = (gruposEnRed ?? []).map((g) => g.id)
-      if (grupoIds.length > 0) {
+    if (!hasRole) {
+      // No role assigned (bootstrap) → unrestricted, see everything
+      visiblePersonaIds = null
+    } else {
+      const liderGrupoIds = currentUser?.lider_grupo_ids ?? []
+      if (liderGrupoIds.length > 0) {
+        // User leads at least one group → show only those members
         const { data: miembroRows } = await supabase
           .from('grupo_miembros')
           .select('persona_id')
-          .in('grupo_id', grupoIds)
+          .in('grupo_id', liderGrupoIds)
           .eq('activo', true)
         visiblePersonaIds = [...new Set((miembroRows ?? []).map((m) => m.persona_id as string))]
+      } else if (currentUser?.red_id) {
+        // No groups led but has a red → show all in the red
+        const { data: gruposEnRed } = await supabase
+          .from('grupos')
+          .select('id')
+          .eq('red_id', currentUser.red_id)
+          .is('deleted_at', null)
+        const grupoIds = (gruposEnRed ?? []).map((g) => g.id)
+        if (grupoIds.length > 0) {
+          const { data: miembroRows } = await supabase
+            .from('grupo_miembros')
+            .select('persona_id')
+            .in('grupo_id', grupoIds)
+            .eq('activo', true)
+          visiblePersonaIds = [...new Set((miembroRows ?? []).map((m) => m.persona_id as string))]
+        } else {
+          visiblePersonaIds = []
+        }
+      } else if (currentUser?.persona_id) {
+        // Has role but no red/group assignment → show only directly-assigned personas + themselves
+        const { data: directRows } = await supabase
+          .from('personas')
+          .select('id')
+          .eq('lider_id', currentUser.persona_id)
+          .is('deleted_at', null)
+        const ids = (directRows ?? []).map((p) => p.id as string)
+        ids.push(currentUser.persona_id)
+        visiblePersonaIds = [...new Set(ids)]
       } else {
+        // Has role but no persona linked → empty
         visiblePersonaIds = []
       }
-    // else: no red assignment → no filter (administrative user not tied to a red)
     }
   }
 

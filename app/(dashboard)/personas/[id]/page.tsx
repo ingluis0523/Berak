@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Pencil, Phone, Mail, MapPin, Calendar, User } from 'lucide-react'
+import { Pencil, Phone, Mail, MapPin, Calendar, User, ArrowLeft } from 'lucide-react'
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
@@ -106,6 +106,12 @@ export default async function PersonaDetailPage({
 
   return (
     <div className="space-y-5 max-w-4xl">
+      {/* Back */}
+      <Link href="/personas" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900">
+        <ArrowLeft size={15} />
+        Volver a personas
+      </Link>
+
       {/* Header card */}
       <Card>
         <CardContent className="flex flex-col sm:flex-row items-start sm:items-center gap-5 p-6">

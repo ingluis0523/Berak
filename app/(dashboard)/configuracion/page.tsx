@@ -40,9 +40,10 @@ import { Plus, Pencil, AlertCircle, Settings, Zap, User, Trash2 } from 'lucide-r
 // ─── Reglas predefinidas (seed) ───────────────────────────────────────────────
 
 const REGLAS_SEED = [
-  { nombre: '4 ausencias consecutivas',   tipo: 'ausencias_consecutivas' as TipoRegla, condicion_valor: 4,  accion: 'cambiar_estado', activo: false },
-  { nombre: '30 días sin asistir',          tipo: 'dias_sin_asistir'       as TipoRegla, condicion_valor: 30, accion: 'cambiar_estado', activo: false },
-  { nombre: '10 asistencias acumuladas',    tipo: 'asistencias_acumuladas' as TipoRegla, condicion_valor: 10, accion: 'cambiar_estado', activo: false },
+  { nombre: '4 ausencias consecutivas',        tipo: 'ausencias_consecutivas' as TipoRegla, condicion_valor: 4,    accion: 'cambiar_estado', activo: false },
+  { nombre: '30 días sin asistir',              tipo: 'dias_sin_asistir'       as TipoRegla, condicion_valor: 30,   accion: 'cambiar_estado', activo: false },
+  { nombre: '10 asistencias acumuladas',        tipo: 'asistencias_acumuladas' as TipoRegla, condicion_valor: 10,   accion: 'cambiar_estado', activo: false },
+  { nombre: 'Ingreso a ministerio → Servidor', tipo: 'ingreso_ministerio'     as TipoRegla, condicion_valor: null, accion: 'cambiar_estado', activo: true  },
 ]
 
 const TIPO_REGLA_OPTIONS: { value: TipoRegla; label: string; defaultValor: number | null }[] = [

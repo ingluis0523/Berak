@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { EditarPersonaForm } from './editar-persona-form'
 
@@ -48,6 +50,11 @@ export default async function EditarPersonaPage({ params }: Props) {
 
   return (
     <div className="space-y-5 max-w-3xl">
+      <Link href={`/personas/${id}`} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900">
+        <ArrowLeft size={15} />
+        Volver a {persona.nombres} {persona.apellidos}
+      </Link>
+
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Editar Persona</h1>
         <p className="text-sm text-gray-500">
