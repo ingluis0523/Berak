@@ -83,11 +83,24 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   const canSeeModule = (module: string): boolean => {
     if (is_admin) return true
-    if (!hasRole) return true          // no role assigned → unrestricted
-    if (permisos.length === 0) return false  // role exists but has no permissions → blocked
-    return permisos.some(
-      (p) => p === `${module}_leer` || p === `${module}_escribir` || p === `${module}.*` || p === '*'
-    )
+    if (!hasRole) return true   // no role assigned → unrestricted
+    if (permisos.length === 0) return true  // role with no perms (or query failed) → unrestricted
+
+    // Permissions use naming convention: ver_X, crear_X, editar_X, gestionar_X
+    // Map each sidebar module to the keywords that appear in relevant permission names.
+    const moduleKeywords: Record<string, string[]> = {
+      personas:    ['personas'],
+      redes:       ['grupos', 'redes'],       // redes shown when user has grupos access
+      grupos:      ['grupos', 'miembros'],
+      ministerios: ['personas', 'ministerios'],
+      eventos:     ['eventos'],
+      asistencias: ['asistencias'],
+      reportes:    ['reportes'],
+      usuarios:    ['usuarios'],              // gestionar_usuarios
+      roles:       ['roles'],                 // gestionar_roles
+    }
+    const keywords = moduleKeywords[module] ?? [module]
+    return permisos.some((p) => keywords.some((kw) => p.includes(kw)))
   }
 
   return {
