@@ -38,6 +38,23 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Block inactive users: check estado in our usuarios table
+  if (user && !isPublicRoute) {
+    const { data: usuario } = await supabase
+      .from('usuarios')
+      .select('estado')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (usuario && usuario.estado === false) {
+      await supabase.auth.signOut()
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.searchParams.set('error', 'inactivo')
+      return NextResponse.redirect(url)
+    }
+  }
+
   if (user && isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/'

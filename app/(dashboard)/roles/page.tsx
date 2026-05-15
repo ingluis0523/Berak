@@ -31,6 +31,12 @@ const PERMISOS_SEED: { nombre: string; modulo: string; descripcion: string }[] =
   { nombre: 'crear_grupos',     modulo: 'grupos',      descripcion: 'Crear nuevos grupos' },
   { nombre: 'editar_grupos',    modulo: 'grupos',      descripcion: 'Editar información de grupos' },
   { nombre: 'gestionar_miembros',modulo: 'grupos',     descripcion: 'Agregar/quitar miembros de grupos' },
+  { nombre: 'ver_redes',        modulo: 'redes',       descripcion: 'Ver lista y detalle de redes' },
+  { nombre: 'crear_redes',      modulo: 'redes',       descripcion: 'Crear nuevas redes' },
+  { nombre: 'editar_redes',     modulo: 'redes',       descripcion: 'Editar información de redes' },
+  { nombre: 'ver_ministerios',  modulo: 'ministerios', descripcion: 'Ver lista y detalle de ministerios' },
+  { nombre: 'crear_ministerios',modulo: 'ministerios', descripcion: 'Crear nuevos ministerios' },
+  { nombre: 'editar_ministerios',modulo: 'ministerios',descripcion: 'Editar información de ministerios' },
   { nombre: 'ver_eventos',      modulo: 'eventos',     descripcion: 'Ver eventos programados' },
   { nombre: 'crear_eventos',    modulo: 'eventos',     descripcion: 'Crear nuevos eventos' },
   { nombre: 'editar_eventos',   modulo: 'eventos',     descripcion: 'Editar eventos existentes' },
@@ -49,13 +55,15 @@ const PERMISOS_SEED: { nombre: string; modulo: string; descripcion: string }[] =
 const MODULO_LABELS: Record<string, string> = {
   personas:    'Personas',
   grupos:      'Grupos',
+  redes:       'Redes',
+  ministerios: 'Ministerios',
   eventos:     'Eventos',
   asistencias: 'Asistencias',
   reportes:    'Reportes',
   sistema:     'Sistema',
 }
 
-const MODULO_ORDER = ['personas', 'grupos', 'eventos', 'asistencias', 'reportes', 'sistema']
+const MODULO_ORDER = ['personas', 'grupos', 'redes', 'ministerios', 'eventos', 'asistencias', 'reportes', 'sistema']
 
 // ─── Modal: Nuevo / Editar Rol ────────────────────────────────────────────────
 

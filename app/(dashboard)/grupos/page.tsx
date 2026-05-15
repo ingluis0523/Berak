@@ -46,5 +46,8 @@ export default async function GruposPage() {
     miembros_count: countMap[g.id] ?? 0,
   }))
 
-  return <GruposClient grupos={enrichedGrupos} redes={redes ?? []} />
+  const canCrear  = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('crear_grupos')
+  const canEditar = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('editar_grupos')
+
+  return <GruposClient grupos={enrichedGrupos} redes={redes ?? []} canCrear={canCrear} canEditar={canEditar} />
 }

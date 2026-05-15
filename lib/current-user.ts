@@ -8,6 +8,8 @@ export interface CurrentUser {
   is_admin: boolean
   /** Primary network this user belongs to (null = admin sees all, or user not in any group) */
   red_id: string | null
+  /** IDs of grupos where this user is the lider (for fine-grained persona scoping) */
+  lider_grupo_ids: string[]
   hasPermission: (perm: string) => boolean
   /**
    * Returns true if the user can see a given module in the sidebar/app.
@@ -81,6 +83,17 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     }
   }
 
+  // Groups led by this user (for persona scoping).
+  let lider_grupo_ids: string[] = []
+  if (!is_admin && usuario.persona_id) {
+    const { data: gruposLider } = await supabase
+      .from('grupos')
+      .select('id')
+      .eq('lider_id', usuario.persona_id)
+      .is('deleted_at', null)
+    lider_grupo_ids = (gruposLider ?? []).map((g) => g.id)
+  }
+
   const canSeeModule = (module: string): boolean => {
     if (is_admin) return true
     if (!hasRole) return true   // no role assigned → unrestricted
@@ -110,6 +123,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     permisos,
     is_admin,
     red_id,
+    lider_grupo_ids,
     hasPermission: (perm: string) => is_admin || permisos.includes(perm),
     canSeeModule,
   }

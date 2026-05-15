@@ -31,6 +31,8 @@ interface GrupoRow extends Grupo {
 interface Props {
   grupos: GrupoRow[]
   redes: Pick<Red, 'id' | 'nombre'>[]
+  canCrear: boolean
+  canEditar: boolean
 }
 
 const DIA_LABELS: Record<string, string> = {
@@ -43,7 +45,7 @@ const DIA_LABELS: Record<string, string> = {
   domingo: 'Domingo',
 }
 
-export default function GruposClient({ grupos, redes }: Props) {
+export default function GruposClient({ grupos, redes, canCrear, canEditar }: Props) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [redFilter, setRedFilter] = useState('all')
@@ -72,10 +74,12 @@ export default function GruposClient({ grupos, redes }: Props) {
           <h1 className="text-2xl font-bold text-gray-900">Grupos</h1>
           <p className="text-sm text-gray-500 mt-0.5">Gestiona los grupos de la iglesia</p>
         </div>
-        <Button onClick={() => router.push('/grupos/nuevo')} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Nuevo grupo
-        </Button>
+        {canCrear && (
+          <Button onClick={() => router.push('/grupos/nuevo')} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Nuevo grupo
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -180,16 +184,18 @@ export default function GruposClient({ grupos, redes }: Props) {
                           <Eye className="h-3.5 w-3.5" />
                         </Link>
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        asChild
-                        title="Editar"
-                      >
-                        <Link href={`/grupos/${g.id}/editar`}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Link>
-                      </Button>
+                      {canEditar && (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          asChild
+                          title="Editar"
+                        >
+                          <Link href={`/grupos/${g.id}/editar`}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Link>
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

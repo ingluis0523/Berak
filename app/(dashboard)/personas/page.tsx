@@ -53,24 +53,36 @@ export default async function PersonasPage({ searchParams }: PageProps) {
   const { getCurrentUser } = await import('@/lib/current-user')
   const currentUser = await getCurrentUser()
 
-  // For non-admin users scoped to a red, collect the persona IDs visible to them
+  // Scope visible personas: leaders see only their group members; others see their whole red.
   let visiblePersonaIds: string[] | null = null
-  if (!currentUser?.is_admin && currentUser?.red_id) {
-    const { data: gruposEnRed } = await supabase
-      .from('grupos')
-      .select('id')
-      .eq('red_id', currentUser.red_id)
-      .is('deleted_at', null)
-    const grupoIds = (gruposEnRed ?? []).map((g) => g.id)
-    if (grupoIds.length > 0) {
+  if (!currentUser?.is_admin) {
+    const liderGrupoIds = currentUser?.lider_grupo_ids ?? []
+    if (liderGrupoIds.length > 0) {
+      // User leads at least one group → show only those members
       const { data: miembroRows } = await supabase
         .from('grupo_miembros')
         .select('persona_id')
-        .in('grupo_id', grupoIds)
+        .in('grupo_id', liderGrupoIds)
         .eq('activo', true)
       visiblePersonaIds = [...new Set((miembroRows ?? []).map((m) => m.persona_id as string))]
-    } else {
-      visiblePersonaIds = []
+    } else if (currentUser?.red_id) {
+      // No groups led but has a red → show all in the red
+      const { data: gruposEnRed } = await supabase
+        .from('grupos')
+        .select('id')
+        .eq('red_id', currentUser.red_id)
+        .is('deleted_at', null)
+      const grupoIds = (gruposEnRed ?? []).map((g) => g.id)
+      if (grupoIds.length > 0) {
+        const { data: miembroRows } = await supabase
+          .from('grupo_miembros')
+          .select('persona_id')
+          .in('grupo_id', grupoIds)
+          .eq('activo', true)
+        visiblePersonaIds = [...new Set((miembroRows ?? []).map((m) => m.persona_id as string))]
+      } else {
+        visiblePersonaIds = []
+      }
     }
   }
 
