@@ -76,6 +76,22 @@ export function EditarGrupoForm({ grupo, personas, redes }: Props) {
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }))
   }
 
+  async function handleLiderChange(personaId: string) {
+    setField('lider_id', personaId)
+    if (!personaId || personaId === 'none') return
+    // Auto-fill red based on the leader's group membership
+    const { data: gm } = await supabase
+      .from('grupo_miembros')
+      .select('grupo:grupos(red_id)')
+      .eq('persona_id', personaId)
+      .eq('activo', true)
+      .maybeSingle()
+    const grupoRaw = gm?.grupo
+    const grupo = (Array.isArray(grupoRaw) ? grupoRaw[0] : grupoRaw) as { red_id: string | null } | null
+    const redId = grupo?.red_id
+    if (redId) setField('red_id', redId)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setGlobalError(null)
@@ -182,7 +198,7 @@ export function EditarGrupoForm({ grupo, personas, redes }: Props) {
               <Combobox
                 options={personas}
                 value={form.lider_id || undefined}
-                onValueChange={(v) => setField('lider_id', v)}
+                onValueChange={handleLiderChange}
                 placeholder="Selecciona el líder"
                 error={errors.lider_id}
               />

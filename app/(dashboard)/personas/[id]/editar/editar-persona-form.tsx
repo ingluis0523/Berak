@@ -92,17 +92,22 @@ export function EditarPersonaForm({ persona, estados, lideres }: Props) {
         observaciones: data.observaciones?.trim() || null,
       }
 
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from('personas')
         .update(payload)
         .eq('id', persona.id)
+        .select('id')
+        .maybeSingle()
 
       if (error) {
         setServerError(error.message)
         return
       }
+      if (!updated) {
+        setServerError('No se pudieron guardar los cambios. Verifica que tengas permiso para editar esta persona.')
+        return
+      }
       router.push(`/personas/${persona.id}`)
-      router.refresh()
     } finally {
       setLoading(false)
     }
