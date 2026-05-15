@@ -100,8 +100,9 @@ export default async function PersonasPage({ searchParams }: PageProps) {
         ids.push(currentUser.persona_id)
         visiblePersonaIds = [...new Set(ids)]
       } else {
-        // Has role but no persona linked → empty
-        visiblePersonaIds = []
+        // Has role but no persona linked → user created directly in Supabase (admin-type)
+        // No persona_id means this is not a regular user → unrestricted
+        visiblePersonaIds = null
       }
     }
   }
