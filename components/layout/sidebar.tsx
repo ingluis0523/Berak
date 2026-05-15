@@ -68,9 +68,9 @@ export function Sidebar({ isAdmin, permisos }: SidebarProps) {
     if (permisos.length === 0) return true
     const moduleKeywords: Record<string, string[]> = {
       personas:    ['personas'],
-      redes:       ['grupos', 'redes'],
+      redes:       ['redes'],
       grupos:      ['grupos', 'miembros'],
-      ministerios: ['personas', 'ministerios'],
+      ministerios: ['ministerios'],
       eventos:     ['eventos'],
       asistencias: ['asistencias'],
       reportes:    ['reportes'],

@@ -103,14 +103,14 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     // Map each sidebar module to the keywords that appear in relevant permission names.
     const moduleKeywords: Record<string, string[]> = {
       personas:    ['personas'],
-      redes:       ['grupos', 'redes'],       // redes shown when user has grupos access
+      redes:       ['redes'],
       grupos:      ['grupos', 'miembros'],
-      ministerios: ['personas', 'ministerios'],
+      ministerios: ['ministerios'],
       eventos:     ['eventos'],
       asistencias: ['asistencias'],
       reportes:    ['reportes'],
-      usuarios:    ['usuarios'],              // gestionar_usuarios
-      roles:       ['roles'],                 // gestionar_roles
+      usuarios:    ['usuarios'],
+      roles:       ['roles'],
     }
     const keywords = moduleKeywords[module] ?? [module]
     return permisos.some((p) => keywords.some((kw) => p.includes(kw)))
@@ -124,7 +124,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     is_admin,
     red_id,
     lider_grupo_ids,
-    hasPermission: (perm: string) => is_admin || permisos.includes(perm),
+    hasPermission: (perm: string) => is_admin || !hasRole || permisos.length === 0 || permisos.includes(perm),
     canSeeModule,
   }
 }

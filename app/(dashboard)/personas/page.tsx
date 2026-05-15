@@ -53,9 +53,10 @@ export default async function PersonasPage({ searchParams }: PageProps) {
   const { getCurrentUser } = await import('@/lib/current-user')
   const currentUser = await getCurrentUser()
 
-  // Scope visible personas: leaders see only their group members; others see their whole red.
+  // Scope visible personas by red/group unless user has full access.
+  const hasFullAccess = currentUser?.is_admin || currentUser?.hasPermission('acceso_todas_redes')
   let visiblePersonaIds: string[] | null = null
-  if (!currentUser?.is_admin) {
+  if (!hasFullAccess) {
     const liderGrupoIds = currentUser?.lider_grupo_ids ?? []
     if (liderGrupoIds.length > 0) {
       // User leads at least one group → show only those members
@@ -83,6 +84,9 @@ export default async function PersonasPage({ searchParams }: PageProps) {
       } else {
         visiblePersonaIds = []
       }
+    } else {
+      // Non-admin with no red and no groups → show nothing
+      visiblePersonaIds = []
     }
   }
 
@@ -138,12 +142,14 @@ export default async function PersonasPage({ searchParams }: PageProps) {
           <h1 className="text-2xl font-bold text-gray-900">Personas</h1>
           <p className="text-sm text-gray-500">{count ?? 0} registros en total</p>
         </div>
-        <Button asChild>
-          <Link href="/personas/nueva">
-            <UserPlus size={16} />
-            Nueva persona
-          </Link>
-        </Button>
+        {currentUser?.hasPermission('crear_personas') && (
+          <Button asChild>
+            <Link href="/personas/nueva">
+              <UserPlus size={16} />
+              Nueva persona
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -225,11 +231,13 @@ export default async function PersonasPage({ searchParams }: PageProps) {
                               <Eye size={15} />
                             </Link>
                           </Button>
-                          <Button variant="ghost" size="icon-sm" asChild>
-                            <Link href={`/personas/${p.id}/editar`}>
-                              <Pencil size={15} />
-                            </Link>
-                          </Button>
+                          {currentUser?.hasPermission('editar_personas') && (
+                            <Button variant="ghost" size="icon-sm" asChild>
+                              <Link href={`/personas/${p.id}/editar`}>
+                                <Pencil size={15} />
+                              </Link>
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

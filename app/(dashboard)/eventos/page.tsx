@@ -43,15 +43,20 @@ export default async function EventosPage({ searchParams }: PageProps) {
   const { getCurrentUser } = await import('@/lib/current-user')
   const currentUser = await getCurrentUser()
 
-  // Resolve visible grupo IDs for non-admin users scoped to a red
+  // Resolve visible grupo IDs; null = no filter (full access), [] = only global events
+  const hasFullAccess = currentUser?.is_admin || currentUser?.hasPermission('acceso_todas_redes')
   let visibleGrupoIds: string[] | null = null
-  if (!currentUser?.is_admin && currentUser?.red_id) {
-    const { data: gruposEnRed } = await supabase
-      .from('grupos')
-      .select('id')
-      .eq('red_id', currentUser.red_id)
-      .is('deleted_at', null)
-    visibleGrupoIds = (gruposEnRed ?? []).map((g) => g.id)
+  if (!hasFullAccess) {
+    if (currentUser?.red_id) {
+      const { data: gruposEnRed } = await supabase
+        .from('grupos')
+        .select('id')
+        .eq('red_id', currentUser.red_id)
+        .is('deleted_at', null)
+      visibleGrupoIds = (gruposEnRed ?? []).map((g) => g.id)
+    } else {
+      visibleGrupoIds = []
+    }
   }
 
   // Build eventos query: non-admins see global events + events for their red's grupos
@@ -84,6 +89,10 @@ export default async function EventosPage({ searchParams }: PageProps) {
       .is('deleted_at', null)
       .order('nombre'),
   ])
+
+  const canCrearEvento   = currentUser?.hasPermission('crear_eventos')   ?? true
+  const canEditarEvento  = currentUser?.hasPermission('editar_eventos')  ?? true
+  const canCancelarEvento = currentUser?.hasPermission('cancelar_eventos') ?? true
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -123,13 +132,15 @@ export default async function EventosPage({ searchParams }: PageProps) {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/eventos/nueva-plantilla">
-              <LayoutTemplate size={16} />
-              Nueva plantilla
-            </Link>
-          </Button>
-          <NuevoEventoButton />
+          {canCrearEvento && (
+            <Button variant="outline" asChild>
+              <Link href="/eventos/nueva-plantilla">
+                <LayoutTemplate size={16} />
+                Nueva plantilla
+              </Link>
+            </Button>
+          )}
+          {canCrearEvento && <NuevoEventoButton />}
         </div>
       </div>
 
@@ -155,17 +166,17 @@ export default async function EventosPage({ searchParams }: PageProps) {
 
         {/* ── Próximos ──────────────────────────────────────────────────────── */}
         <TabsContent value="proximos">
-          <EventosTable eventos={proximos} page={tab === 'proximos' ? page : 1} search={search} fecha={fecha} tab="proximos" />
+          <EventosTable eventos={proximos} page={tab === 'proximos' ? page : 1} search={search} fecha={fecha} tab="proximos" canEditar={canEditarEvento} canCancelar={canCancelarEvento} />
         </TabsContent>
 
         {/* ── Realizados ────────────────────────────────────────────────────── */}
         <TabsContent value="realizados">
-          <EventosTable eventos={realizados} page={tab === 'realizados' ? page : 1} search={search} fecha={fecha} tab="realizados" />
+          <EventosTable eventos={realizados} page={tab === 'realizados' ? page : 1} search={search} fecha={fecha} tab="realizados" canEditar={canEditarEvento} canCancelar={canCancelarEvento} />
         </TabsContent>
 
         {/* ── Cancelados ────────────────────────────────────────────────────── */}
         <TabsContent value="cancelados">
-          <EventosTable eventos={cancelados} page={tab === 'cancelados' ? page : 1} search={search} fecha={fecha} tab="cancelados" />
+          <EventosTable eventos={cancelados} page={tab === 'cancelados' ? page : 1} search={search} fecha={fecha} tab="cancelados" canEditar={canEditarEvento} canCancelar={canCancelarEvento} />
         </TabsContent>
 
         {/* ── Plantillas ────────────────────────────────────────────────────── */}
@@ -203,12 +214,16 @@ function EventosTable({
   search,
   fecha,
   tab,
+  canEditar,
+  canCancelar,
 }: {
   eventos: Evento[]
   page: number
   search: string
   fecha: string
   tab: string
+  canEditar: boolean
+  canCancelar: boolean
 }) {
   if (eventos.length === 0) {
     return (
@@ -277,12 +292,14 @@ function EventosTable({
                           <Eye size={14} />
                         </Link>
                       </Button>
-                      <Button variant="ghost" size="icon-sm" asChild title="Editar evento">
-                        <Link href={`/eventos/${e.id}/editar`}>
-                          <Pencil size={14} />
-                        </Link>
-                      </Button>
-                      {e.estado !== 'cancelado' && (
+                      {canEditar && (
+                        <Button variant="ghost" size="icon-sm" asChild title="Editar evento">
+                          <Link href={`/eventos/${e.id}/editar`}>
+                            <Pencil size={14} />
+                          </Link>
+                        </Button>
+                      )}
+                      {canCancelar && e.estado !== 'cancelado' && (
                         <Button
                           variant="ghost"
                           size="icon-sm"

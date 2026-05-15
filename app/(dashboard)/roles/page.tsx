@@ -48,6 +48,7 @@ const PERMISOS_SEED: { nombre: string; modulo: string; descripcion: string }[] =
   { nombre: 'exportar_reportes',modulo: 'reportes',    descripcion: 'Exportar reportes a CSV/Excel' },
   { nombre: 'gestionar_usuarios',modulo: 'sistema',    descripcion: 'Crear y administrar usuarios' },
   { nombre: 'gestionar_roles',  modulo: 'sistema',     descripcion: 'Gestionar roles y permisos' },
+  { nombre: 'acceso_todas_redes',modulo: 'sistema',    descripcion: 'Ver datos de todas las redes (sin restricción por red)' },
   { nombre: 'ver_configuracion',modulo: 'sistema',     descripcion: 'Ver configuración del sistema' },
   { nombre: 'gestionar_configuracion', modulo: 'sistema', descripcion: 'Modificar configuración del sistema' },
 ]

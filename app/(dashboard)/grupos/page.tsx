@@ -15,9 +15,14 @@ export default async function GruposPage() {
     .is('deleted_at', null)
     .order('nombre')
 
-  // Scope non-admin users to their own network
-  if (!currentUser?.is_admin && currentUser?.red_id) {
-    gruposQuery = gruposQuery.eq('red_id', currentUser.red_id)
+  // Scope non-admin users to their own network unless they have full access
+  const hasFullAccess = currentUser?.is_admin || currentUser?.hasPermission('acceso_todas_redes')
+  if (!hasFullAccess) {
+    if (currentUser?.red_id) {
+      gruposQuery = gruposQuery.eq('red_id', currentUser.red_id)
+    } else {
+      gruposQuery = gruposQuery.eq('id', '00000000-0000-0000-0000-000000000000')
+    }
   }
 
   const [{ data: grupos }, { data: redes }] = await Promise.all([
