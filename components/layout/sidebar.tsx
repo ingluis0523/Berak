@@ -59,12 +59,14 @@ const SECTION_LABELS: Record<string, string> = {
 
 interface SidebarProps {
   isAdmin: boolean
+  hasRole: boolean
   permisos: string[]
 }
 
-export function Sidebar({ isAdmin, permisos }: SidebarProps) {
+export function Sidebar({ isAdmin, hasRole, permisos }: SidebarProps) {
   const canSeeModule = (module: string): boolean => {
     if (isAdmin) return true
+    if (!hasRole) return true   // no role assigned → unrestricted
     if (permisos.length === 0) return true
     const moduleKeywords: Record<string, string[]> = {
       personas:    ['personas'],
@@ -85,7 +87,7 @@ export function Sidebar({ isAdmin, permisos }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
 
   const visibleItems = NAV_ITEMS.filter((i) => {
-    if (i.adminOnly) return isAdmin
+    if (i.adminOnly) return isAdmin || !hasRole || permisos.some((p) => p.includes('configuracion'))
     if (i.module) return canSeeModule(i.module)
     return true
   })
