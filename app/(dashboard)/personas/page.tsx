@@ -64,13 +64,25 @@ export default async function PersonasPage({ searchParams }: PageProps) {
     } else {
       const liderGrupoIds = currentUser?.lider_grupo_ids ?? []
       if (liderGrupoIds.length > 0) {
-        // User leads at least one group → show only those members
+        // User leads at least one group → group members + directly-assigned personas
         const { data: miembroRows } = await supabase
           .from('grupo_miembros')
           .select('persona_id')
           .in('grupo_id', liderGrupoIds)
           .eq('activo', true)
-        visiblePersonaIds = [...new Set((miembroRows ?? []).map((m) => m.persona_id as string))]
+        const groupMemberIds = (miembroRows ?? []).map((m) => m.persona_id as string)
+
+        let directIds: string[] = []
+        if (currentUser?.persona_id) {
+          const { data: directRows } = await supabase
+            .from('personas')
+            .select('id')
+            .eq('lider_id', currentUser.persona_id)
+            .is('deleted_at', null)
+          directIds = (directRows ?? []).map((p) => p.id as string)
+          directIds.push(currentUser.persona_id)
+        }
+        visiblePersonaIds = [...new Set([...groupMemberIds, ...directIds])]
       } else if (currentUser?.red_id) {
         // No groups led but has a red → show all in the red
         const { data: gruposEnRed } = await supabase

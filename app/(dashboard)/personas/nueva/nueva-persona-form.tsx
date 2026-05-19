@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Combobox } from '@/components/ui/combobox'
+import { Network } from 'lucide-react'
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ export function NuevaPersonaForm({ estados, lideres }: Props) {
   const router = useRouter()
   const [serverError, setServerError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [redNombre, setRedNombre] = useState<string | null>(null)
 
   const {
     register,
@@ -65,6 +67,23 @@ export function NuevaPersonaForm({ estados, lideres }: Props) {
     resolver: zodResolver(schema),
     defaultValues: { tipo_persona: 'visitante' },
   })
+
+  async function handleLiderChange(v: string) {
+    setValue('lider_id', v)
+    setRedNombre(null)
+    if (!v || v === 'none') return
+    const supabase = createClient()
+    const { data: gm } = await supabase
+      .from('grupos')
+      .select('redes(nombre)')
+      .eq('lider_id', v)
+      .eq('estado', true)
+      .is('deleted_at', null)
+      .maybeSingle()
+    const redRaw = gm?.redes as unknown
+    const red = (Array.isArray(redRaw) ? redRaw[0] : redRaw) as { nombre: string } | null
+    setRedNombre(red?.nombre ?? null)
+  }
 
   const onSubmit = async (data: FormData) => {
     setLoading(true)
@@ -199,9 +218,15 @@ export function NuevaPersonaForm({ estados, lideres }: Props) {
             <Combobox
               options={[{ value: 'none', label: 'Sin líder' }, ...lideres]}
               value={watch('lider_id') || undefined}
-              onValueChange={(v) => setValue('lider_id', v)}
+              onValueChange={handleLiderChange}
               placeholder="Sin líder asignado"
             />
+            {redNombre && (
+              <p className="text-xs text-blue-700 flex items-center gap-1 mt-0.5">
+                <Network size={12} />
+                Se asignará a la red: <span className="font-medium">{redNombre}</span>
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
