@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AttendanceChart } from './attendance-chart'
+import { DashboardGreeting } from './dashboard-greeting'
 import {
   Users,
   UserPlus,
@@ -147,20 +148,11 @@ export default async function DashboardPage() {
     chartData.push({ semana: label, asistencias: total })
   }
 
-  // ── Greeting ──────────────────────────────────────────────────────────────
-  const hour = now.getHours()
-  const greeting =
-    hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches'
-  const dayLabel = now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{greeting}</h1>
-          <p className="text-sm text-gray-500 capitalize">{dayLabel}</p>
-        </div>
+        <DashboardGreeting />
       </div>
 
       {/* KPI Cards */}
