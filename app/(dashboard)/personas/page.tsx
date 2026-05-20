@@ -53,17 +53,36 @@ export default async function PersonasPage({ searchParams }: PageProps) {
   const { getCurrentUser } = await import('@/lib/current-user')
   const currentUser = await getCurrentUser()
 
-  // Scope visible personas by red/group unless user has full access.
-  const hasFullAccess = currentUser?.is_admin || currentUser?.hasPermission('acceso_todas_redes')
+  // Use direct permisos check (not the fallback-permissive hasPermission) so that
+  // users with a role-but-no-permissions don't accidentally get full access.
+  const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
   const hasRole = !!currentUser?.rol
   let visiblePersonaIds: string[] | null = null
   if (!hasFullAccess) {
     if (!hasRole) {
       // No role assigned (bootstrap) → unrestricted, see everything
       visiblePersonaIds = null
-    } else if (currentUser?.is_encargado_red) {
-      // Encargado de red → full visibility within their red; RLS enforces the boundary at DB level
-      visiblePersonaIds = null
+    } else if (currentUser?.is_encargado_red && currentUser?.red_id) {
+      // Encargado de red → all personas in grupos of their red (members + líderes/sublíderes/anfitriones)
+      const { data: gruposEnRed } = await supabase
+        .from('grupos')
+        .select('id, lider_id, sublider_id, anfitrion_id')
+        .eq('red_id', currentUser.red_id)
+        .is('deleted_at', null)
+      const grupoIds = (gruposEnRed ?? []).map((g) => g.id)
+      const roleIds = (gruposEnRed ?? [])
+        .flatMap((g) => [g.lider_id, g.sublider_id, g.anfitrion_id])
+        .filter(Boolean) as string[]
+      let memberIds: string[] = []
+      if (grupoIds.length > 0) {
+        const { data: miembroRows } = await supabase
+          .from('grupo_miembros')
+          .select('persona_id')
+          .in('grupo_id', grupoIds)
+          .eq('activo', true)
+        memberIds = (miembroRows ?? []).map((m) => m.persona_id as string)
+      }
+      visiblePersonaIds = [...new Set([...memberIds, ...roleIds])]
     } else {
       const liderGrupoIds = currentUser?.lider_grupo_ids ?? []
       if (liderGrupoIds.length > 0) {
@@ -87,7 +106,7 @@ export default async function PersonasPage({ searchParams }: PageProps) {
         }
         visiblePersonaIds = [...new Set([...groupMemberIds, ...directIds])]
       } else if (currentUser?.red_id) {
-        // No groups led but has a red → show all in the red
+        // No groups led but has a red → show all members in the red
         const { data: gruposEnRed } = await supabase
           .from('grupos')
           .select('id')
@@ -116,7 +135,6 @@ export default async function PersonasPage({ searchParams }: PageProps) {
         visiblePersonaIds = [...new Set(ids)]
       } else {
         // Has role but no persona linked → user created directly in Supabase (admin-type)
-        // No persona_id means this is not a regular user → unrestricted
         visiblePersonaIds = null
       }
     }

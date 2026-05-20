@@ -16,7 +16,7 @@ export default async function GruposPage() {
     .order('nombre')
 
   // Scope non-admin users to their own network unless they have full access
-  const hasFullAccess = currentUser?.is_admin || currentUser?.hasPermission('acceso_todas_redes')
+  const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
   if (!hasFullAccess) {
     const liderIds = currentUser?.lider_grupo_ids ?? []
     const redId = currentUser?.red_id
