@@ -17,9 +17,17 @@ export default async function GruposPage() {
 
   // Scope non-admin users to their own network unless they have full access
   const hasFullAccess = currentUser?.is_admin || currentUser?.hasPermission('acceso_todas_redes')
-  if (!hasFullAccess && currentUser?.red_id) {
-    gruposQuery = gruposQuery.eq('red_id', currentUser.red_id)
-    // else: no red assignment → no filter
+  if (!hasFullAccess) {
+    const liderIds = currentUser?.lider_grupo_ids ?? []
+    const redId = currentUser?.red_id
+    if (redId && liderIds.length > 0) {
+      gruposQuery = gruposQuery.or(`red_id.eq.${redId},id.in.(${liderIds.join(',')})`)
+    } else if (redId) {
+      gruposQuery = gruposQuery.eq('red_id', redId)
+    } else if (liderIds.length > 0) {
+      gruposQuery = gruposQuery.in('id', liderIds)
+    }
+    // no red and no led groups → unfiltered (unassigned user, existing behavior)
   }
 
   const [{ data: grupos }, { data: redes }] = await Promise.all([

@@ -61,6 +61,9 @@ export default async function PersonasPage({ searchParams }: PageProps) {
     if (!hasRole) {
       // No role assigned (bootstrap) → unrestricted, see everything
       visiblePersonaIds = null
+    } else if (currentUser?.is_encargado_red) {
+      // Encargado de red → full visibility within their red; RLS enforces the boundary at DB level
+      visiblePersonaIds = null
     } else {
       const liderGrupoIds = currentUser?.lider_grupo_ids ?? []
       if (liderGrupoIds.length > 0) {

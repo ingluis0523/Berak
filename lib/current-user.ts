@@ -8,6 +8,8 @@ export interface CurrentUser {
   is_admin: boolean
   /** Primary network this user belongs to (null = admin sees all, or user not in any group) */
   red_id: string | null
+  /** True when this user is the encargado (redes.lider_id) of their red — full visibility within that red */
+  is_encargado_red: boolean
   /** IDs of grupos where this user is the lider (for fine-grained persona scoping) */
   lider_grupo_ids: string[]
   hasPermission: (perm: string) => boolean
@@ -83,15 +85,39 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     }
   }
 
-  // Groups led by this user (for persona scoping).
+  // Groups led by this user (for persona scoping + red fallback).
   let lider_grupo_ids: string[] = []
   if (!is_admin && usuario.persona_id) {
     const { data: gruposLider } = await supabase
       .from('grupos')
-      .select('id')
+      .select('id, red_id')
       .eq('lider_id', usuario.persona_id)
       .is('deleted_at', null)
     lider_grupo_ids = (gruposLider ?? []).map((g) => g.id)
+
+    // Fallback: if not in grupo_miembros, derive red from a grupo led
+    if (!red_id) {
+      const grupoConRed = (gruposLider ?? []).find((g) => g.red_id)
+      if (grupoConRed?.red_id) red_id = grupoConRed.red_id as string
+    }
+  }
+
+  // Check if user is encargado of a red (redes.lider_id). Always run this check
+  // regardless of whether red_id was already set via grupo_miembros or grupos.lider_id.
+  let is_encargado_red = false
+  if (!is_admin && usuario.persona_id) {
+    const { data: rl } = await supabase
+      .from('redes')
+      .select('id')
+      .eq('lider_id', usuario.persona_id)
+      .is('deleted_at', null)
+      .eq('estado', true)
+      .limit(1)
+      .maybeSingle()
+    if (rl?.id) {
+      is_encargado_red = true
+      if (!red_id) red_id = rl.id as string
+    }
   }
 
   const canSeeModule = (module: string): boolean => {
@@ -123,6 +149,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     permisos,
     is_admin,
     red_id,
+    is_encargado_red,
     lider_grupo_ids,
     hasPermission: (perm: string) => is_admin || !hasRole || permisos.length === 0 || permisos.includes(perm),
     canSeeModule,
