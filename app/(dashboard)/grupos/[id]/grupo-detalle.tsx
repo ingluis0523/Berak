@@ -209,6 +209,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
       nombres: newPersonaForm.nombres.trim(),
       apellidos: newPersonaForm.apellidos.trim(),
       tipo_persona: newPersonaForm.tipo_persona,
+      lider_id: grupo.lider?.id ?? null,
     }
     if (newPersonaForm.telefono.trim()) payload.telefono = newPersonaForm.telefono.trim()
 
