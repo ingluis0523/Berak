@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Pencil, UserPlus, UserMinus, CalendarCheck, ChevronDown, ChevronRight, Eye } from 'lucide-react'
+import { ArrowLeft, Pencil, UserPlus, UserMinus, CalendarCheck, ChevronDown, ChevronRight, Eye, Plus, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,6 +18,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { Grupo, GrupoMiembro, Evento, Persona } from '@/types'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -41,6 +48,16 @@ const DIA_LABELS: Record<string, string> = {
   lunes: 'Lunes', martes: 'Martes', miercoles: 'Miércoles',
   jueves: 'Jueves', viernes: 'Viernes', sabado: 'Sábado', domingo: 'Domingo',
 }
+
+const TIPO_PERSONA_OPTIONS = [
+  { value: 'miembro',   label: 'Miembro' },
+  { value: 'visitante', label: 'Visitante' },
+  { value: 'lider',     label: 'Líder' },
+  { value: 'sublider',  label: 'Sublíder' },
+  { value: 'anfitrion', label: 'Anfitrión' },
+  { value: 'anciano',   label: 'Anciano' },
+  { value: 'pastor',    label: 'Pastor' },
+]
 
 function initials(nombres: string, apellidos: string) {
   return `${nombres[0] ?? ''}${apellidos[0] ?? ''}`.toUpperCase()
@@ -76,19 +93,25 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
     allMonths.delete(currentLabel)
     return allMonths
   })
+
+  // ── Agregar miembro (multi-select) ───────────────────────────────────────
   const [searchPersona, setSearchPersona] = useState('')
   const [personas, setPersonas] = useState<Pick<Persona, 'id' | 'nombres' | 'apellidos'>[]>([])
-  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null)
+  const [selectedPersonaIds, setSelectedPersonaIds] = useState<Set<string>>(new Set())
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [addLoading, setAddLoading] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
   const [removeLoadingId, setRemoveLoadingId] = useState<string | null>(null)
 
-  // ── Cargar personas para agregar ─────────────────────────────────────────
+  // IDs de personas que ya son miembros activos (para excluirlas del buscador)
+  const existingMemberPersonaIds = useMemo(
+    () => new Set(miembros.map((m) => (m.persona as Persona | undefined)?.id).filter(Boolean) as string[]),
+    [miembros]
+  )
 
   const handleOpenAddModal = useCallback(async () => {
     setSearchPersona('')
-    setSelectedPersonaId(null)
+    setSelectedPersonaIds(new Set())
     setAddError(null)
     const { data } = await supabase
       .from('personas')
@@ -100,33 +123,40 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
   }, [supabase])
 
   const filteredPersonas = useMemo(() => {
-    if (!searchPersona.trim()) return personas
+    const available = personas.filter((p) => !existingMemberPersonaIds.has(p.id))
+    if (!searchPersona.trim()) return available
     const q = searchPersona.toLowerCase()
-    return personas.filter(
-      (p) =>
-        p.nombres.toLowerCase().includes(q) ||
-        p.apellidos.toLowerCase().includes(q)
+    return available.filter(
+      (p) => p.nombres.toLowerCase().includes(q) || p.apellidos.toLowerCase().includes(q)
     )
-  }, [personas, searchPersona])
+  }, [personas, searchPersona, existingMemberPersonaIds])
 
-  // ── Agregar miembro ──────────────────────────────────────────────────────
+  function togglePersona(id: string) {
+    setSelectedPersonaIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   async function handleAddMiembro() {
-    if (!selectedPersonaId) return
+    if (selectedPersonaIds.size === 0) return
     setAddLoading(true)
     setAddError(null)
 
     const today = new Date().toISOString().split('T')[0]
-    const { error } = await supabase.from('grupo_miembros').insert({
-      grupo_id: grupo.id,
-      persona_id: selectedPersonaId,
-      fecha_ingreso: today,
-      activo: true,
-    })
+    const { error } = await supabase.from('grupo_miembros').insert(
+      [...selectedPersonaIds].map((id) => ({
+        grupo_id: grupo.id,
+        persona_id: id,
+        fecha_ingreso: today,
+        activo: true,
+      }))
+    )
 
     if (error) { setAddError(error.message); setAddLoading(false); return }
 
-    // Refresh members
     const { data: updated } = await supabase
       .from('grupo_miembros')
       .select('*, persona:personas(id,nombres,apellidos,tipo_persona,foto_url)')
@@ -148,11 +178,76 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
       .from('grupo_miembros')
       .update({ activo: false, fecha_salida: today })
       .eq('id', miembro.id)
-
-    if (!error) {
-      setMiembros((prev) => prev.filter((m) => m.id !== miembro.id))
-    }
+    if (!error) setMiembros((prev) => prev.filter((m) => m.id !== miembro.id))
     setRemoveLoadingId(null)
+  }
+
+  // ── Nueva persona ────────────────────────────────────────────────────────
+
+  const [newPersonaOpen, setNewPersonaOpen] = useState(false)
+  const [newPersonaForm, setNewPersonaForm] = useState({
+    nombres: '', apellidos: '', tipo_persona: 'miembro', telefono: '',
+  })
+  const [newPersonaLoading, setNewPersonaLoading] = useState(false)
+  const [newPersonaError, setNewPersonaError] = useState<string | null>(null)
+
+  function openNewPersona() {
+    setNewPersonaForm({ nombres: '', apellidos: '', tipo_persona: 'miembro', telefono: '' })
+    setNewPersonaError(null)
+    setNewPersonaOpen(true)
+  }
+
+  async function handleCreateAndAdd() {
+    if (!newPersonaForm.nombres.trim() || !newPersonaForm.apellidos.trim()) {
+      setNewPersonaError('Nombres y apellidos son requeridos')
+      return
+    }
+    setNewPersonaLoading(true)
+    setNewPersonaError(null)
+
+    const payload: Record<string, unknown> = {
+      nombres: newPersonaForm.nombres.trim(),
+      apellidos: newPersonaForm.apellidos.trim(),
+      tipo_persona: newPersonaForm.tipo_persona,
+    }
+    if (newPersonaForm.telefono.trim()) payload.telefono = newPersonaForm.telefono.trim()
+
+    const { data: created, error: createErr } = await supabase
+      .from('personas')
+      .insert(payload)
+      .select('id')
+      .single()
+
+    if (createErr || !created) {
+      setNewPersonaError(createErr?.message ?? 'Error al crear la persona')
+      setNewPersonaLoading(false)
+      return
+    }
+
+    const today = new Date().toISOString().split('T')[0]
+    const { error: addErr } = await supabase.from('grupo_miembros').insert({
+      grupo_id: grupo.id,
+      persona_id: created.id,
+      fecha_ingreso: today,
+      activo: true,
+    })
+
+    if (addErr) {
+      setNewPersonaError(addErr.message)
+      setNewPersonaLoading(false)
+      return
+    }
+
+    const { data: updated } = await supabase
+      .from('grupo_miembros')
+      .select('*, persona:personas(id,nombres,apellidos,tipo_persona,foto_url)')
+      .eq('grupo_id', grupo.id)
+      .eq('activo', true)
+      .order('fecha_ingreso', { ascending: false })
+
+    setMiembros(updated ?? [])
+    setNewPersonaLoading(false)
+    setNewPersonaOpen(false)
   }
 
   // ── Eventos agrupados ────────────────────────────────────────────────────
@@ -204,6 +299,8 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
   const nombrePersona = (p?: Pick<Persona, 'nombres' | 'apellidos'> | null) =>
     p ? `${p.nombres} ${p.apellidos}` : '—'
 
+  // ── Render ───────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -251,12 +348,8 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
       {/* Tabs */}
       <Tabs defaultValue="miembros">
         <TabsList>
-          <TabsTrigger value="miembros">
-            Miembros ({miembros.length})
-          </TabsTrigger>
-          <TabsTrigger value="eventos">
-            Eventos ({eventosIniciales.length})
-          </TabsTrigger>
+          <TabsTrigger value="miembros">Miembros ({miembros.length})</TabsTrigger>
+          <TabsTrigger value="eventos">Eventos ({eventosIniciales.length})</TabsTrigger>
           <TabsTrigger value="asistencias">Asistencias</TabsTrigger>
         </TabsList>
 
@@ -265,10 +358,16 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h2 className="font-semibold text-gray-800">Miembros activos</h2>
-              <Button size="sm" onClick={handleOpenAddModal} className="gap-1.5">
-                <UserPlus className="h-3.5 w-3.5" />
-                Agregar miembro
-              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={openNewPersona} className="gap-1.5">
+                  <Plus className="h-3.5 w-3.5" />
+                  Nueva persona
+                </Button>
+                <Button size="sm" onClick={handleOpenAddModal} className="gap-1.5">
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Agregar miembro
+                </Button>
+              </div>
             </div>
 
             {miembros.length === 0 ? (
@@ -321,9 +420,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
             </div>
 
             {Object.keys(eventosAgrupados).length === 0 ? (
-              <div className="py-12 text-center text-gray-400">
-                No hay eventos registrados
-              </div>
+              <div className="py-12 text-center text-gray-400">No hay eventos registrados</div>
             ) : (
               <div className="p-5 space-y-3">
                 {Object.entries(eventosAgrupados).map(([mes, semanas]) => {
@@ -344,44 +441,25 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                         <span className="text-sm font-semibold text-blue-800 capitalize">{mes}</span>
                         <div className="flex items-center gap-2 text-blue-600">
                           <span className="text-xs">{totalEvtsInMes} evento{totalEvtsInMes !== 1 ? 's' : ''}</span>
-                          {isCollapsed
-                            ? <ChevronRight className="h-4 w-4" />
-                            : <ChevronDown className="h-4 w-4" />}
+                          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </div>
                       </button>
-
                       {!isCollapsed && (
                         <div className="p-4 space-y-4">
                           {Object.entries(semanas).map(([semana, evts]) => (
                             <div key={semana}>
-                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 ml-1">
-                                {semana}
-                              </p>
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 ml-1">{semana}</p>
                               <div className="space-y-2">
                                 {evts.map((e) => (
-                                  <div
-                                    key={e.id}
-                                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50"
-                                  >
+                                  <div key={e.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-medium text-gray-900">{e.nombre}</p>
                                       <p className="text-xs text-gray-500">
-                                        {formatDate(e.fecha)}
-                                        {e.hora_inicio && ` · ${e.hora_inicio.slice(0, 5)}`}
+                                        {formatDate(e.fecha)}{e.hora_inicio && ` · ${e.hora_inicio.slice(0, 5)}`}
                                       </p>
                                     </div>
-                                    {!e.grupo_id && (
-                                      <Badge variant="secondary" className="text-xs shrink-0">Global</Badge>
-                                    )}
-                                    <Badge
-                                      variant={
-                                        e.estado === 'realizado'
-                                          ? 'realizado'
-                                          : e.estado === 'cancelado'
-                                          ? 'cancelado'
-                                          : 'programado'
-                                      }
-                                    >
+                                    {!e.grupo_id && <Badge variant="secondary" className="text-xs shrink-0">Global</Badge>}
+                                    <Badge variant={e.estado === 'realizado' ? 'realizado' : e.estado === 'cancelado' ? 'cancelado' : 'programado'}>
                                       {e.estado}
                                     </Badge>
                                     {e.estado !== 'cancelado' && (
@@ -389,15 +467,13 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                                         {e.estado === 'realizado' && (
                                           <Button variant="ghost" size="sm" asChild className="gap-1">
                                             <Link href={`/eventos/${e.id}${!e.grupo_id ? `?grupo_id=${grupo.id}` : ''}`}>
-                                              <Eye className="h-3.5 w-3.5" />
-                                              Resumen
+                                              <Eye className="h-3.5 w-3.5" />Resumen
                                             </Link>
                                           </Button>
                                         )}
                                         <Button variant="outline" size="sm" asChild className="gap-1">
                                           <Link href={`/asistencias/${e.id}${!e.grupo_id ? `?grupo_id=${grupo.id}` : ''}`}>
-                                            <CalendarCheck className="h-3.5 w-3.5" />
-                                            Asistencia
+                                            <CalendarCheck className="h-3.5 w-3.5" />Asistencia
                                           </Link>
                                         </Button>
                                       </div>
@@ -423,11 +499,8 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
             <div className="px-5 py-4 border-b border-gray-100">
               <h2 className="font-semibold text-gray-800">Resumen de asistencias (últimos 8 eventos)</h2>
             </div>
-
             {asistenciaResumen.length === 0 ? (
-              <div className="py-12 text-center text-gray-400">
-                No hay datos de asistencia
-              </div>
+              <div className="py-12 text-center text-gray-400">No hay datos de asistencia</div>
             ) : (
               <div className="p-5 space-y-3">
                 {asistenciaResumen.map(({ evento, porcentaje }) => (
@@ -435,9 +508,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-700 font-medium truncate pr-4">
                         {evento.nombre}
-                        <span className="text-gray-400 font-normal ml-1">
-                          · {formatDate(evento.fecha)}
-                        </span>
+                        <span className="text-gray-400 font-normal ml-1">· {formatDate(evento.fecha)}</span>
                       </span>
                       <span className="text-gray-600 font-semibold shrink-0">
                         {porcentaje != null
@@ -449,11 +520,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                       <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${
-                            porcentaje >= 70
-                              ? 'bg-green-500'
-                              : porcentaje >= 40
-                              ? 'bg-yellow-500'
-                              : 'bg-red-400'
+                            porcentaje >= 70 ? 'bg-green-500' : porcentaje >= 40 ? 'bg-yellow-500' : 'bg-red-400'
                           }`}
                           style={{ width: `${porcentaje}%` }}
                         />
@@ -467,13 +534,13 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
         </TabsContent>
       </Tabs>
 
-      {/* Modal agregar miembro */}
+      {/* ── Modal: agregar miembro (multi-select) ────────────────────────────── */}
       <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
         <DialogContent size="md">
           <DialogHeader>
-            <DialogTitle>Agregar miembro</DialogTitle>
+            <DialogTitle>Agregar miembros</DialogTitle>
             <DialogDescription>
-              Busca y selecciona una persona para agregar al grupo
+              Selecciona una o varias personas para agregar al grupo
             </DialogDescription>
           </DialogHeader>
 
@@ -488,43 +555,121 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
               {filteredPersonas.length === 0 ? (
                 <p className="text-center py-6 text-sm text-gray-400">Sin resultados</p>
               ) : (
-                filteredPersonas.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setSelectedPersonaId(p.id)}
-                    className={`w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors ${
-                      selectedPersonaId === p.id ? 'bg-blue-50' : ''
-                    }`}
-                  >
-                    <Avatar className="h-7 w-7 shrink-0">
-                      <AvatarFallback className="text-xs">
-                        {initials(p.nombres, p.apellidos)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className={`text-sm ${selectedPersonaId === p.id ? 'font-medium text-blue-800' : 'text-gray-800'}`}>
-                      {p.nombres} {p.apellidos}
-                    </span>
-                  </button>
-                ))
+                filteredPersonas.map((p) => {
+                  const selected = selectedPersonaIds.has(p.id)
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => togglePersona(p.id)}
+                      className={`w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors ${selected ? 'bg-blue-50' : ''}`}
+                    >
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${selected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                        {selected && <Check className="h-3 w-3 text-white" />}
+                      </div>
+                      <Avatar className="h-7 w-7 shrink-0">
+                        <AvatarFallback className="text-xs">{initials(p.nombres, p.apellidos)}</AvatarFallback>
+                      </Avatar>
+                      <span className={`text-sm ${selected ? 'font-medium text-blue-800' : 'text-gray-800'}`}>
+                        {p.nombres} {p.apellidos}
+                      </span>
+                    </button>
+                  )
+                })
               )}
             </div>
 
-            {addError && (
-              <p className="text-xs text-red-500">{addError}</p>
+            {selectedPersonaIds.size > 0 && (
+              <p className="text-xs text-blue-700 font-medium">
+                {selectedPersonaIds.size} persona{selectedPersonaIds.size !== 1 ? 's' : ''} seleccionada{selectedPersonaIds.size !== 1 ? 's' : ''}
+              </p>
             )}
+
+            {addError && <p className="text-xs text-red-500">{addError}</p>}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddModalOpen(false)} disabled={addLoading}>
               Cancelar
             </Button>
-            <Button
-              onClick={handleAddMiembro}
-              disabled={!selectedPersonaId}
-              loading={addLoading}
-            >
-              Agregar
+            <Button onClick={handleAddMiembro} disabled={selectedPersonaIds.size === 0} loading={addLoading}>
+              Agregar{selectedPersonaIds.size > 0 ? ` (${selectedPersonaIds.size})` : ''}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal: nueva persona ──────────────────────────────────────────────── */}
+      <Dialog open={newPersonaOpen} onOpenChange={setNewPersonaOpen}>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>Nueva persona</DialogTitle>
+            <DialogDescription>
+              Crea una nueva persona y agrégala directamente a este grupo
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="px-6 py-4 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">
+                  Nombres <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  placeholder="Ej. Juan Carlos"
+                  value={newPersonaForm.nombres}
+                  onChange={(e) => setNewPersonaForm((f) => ({ ...f, nombres: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">
+                  Apellidos <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  placeholder="Ej. García Pérez"
+                  value={newPersonaForm.apellidos}
+                  onChange={(e) => setNewPersonaForm((f) => ({ ...f, apellidos: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">Tipo de persona</label>
+                <Select
+                  value={newPersonaForm.tipo_persona}
+                  onValueChange={(v) => setNewPersonaForm((f) => ({ ...f, tipo_persona: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPO_PERSONA_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">Teléfono</label>
+                <Input
+                  type="tel"
+                  placeholder="+57 300 000 0000"
+                  value={newPersonaForm.telefono}
+                  onChange={(e) => setNewPersonaForm((f) => ({ ...f, telefono: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {newPersonaError && <p className="text-xs text-red-500">{newPersonaError}</p>}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewPersonaOpen(false)} disabled={newPersonaLoading}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateAndAdd} loading={newPersonaLoading}>
+              Crear y agregar al grupo
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -535,15 +680,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
 
 // ─── Sub-component ────────────────────────────────────────────────────────────
 
-function InfoCard({
-  label,
-  value,
-  className,
-}: {
-  label: string
-  value: string
-  className?: string
-}) {
+function InfoCard({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
     <div className={`bg-white rounded-xl border border-gray-200 px-4 py-3 ${className ?? ''}`}>
       <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
