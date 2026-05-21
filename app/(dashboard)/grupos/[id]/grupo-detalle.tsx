@@ -226,18 +226,30 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
       return
     }
 
-    const today = new Date().toISOString().split('T')[0]
-    const { error: addErr } = await supabase.from('grupo_miembros').insert({
-      grupo_id: grupo.id,
-      persona_id: created.id,
-      fecha_ingreso: today,
-      activo: true,
-    })
+    // The assign_persona_to_lider_grupo trigger may have already added the persona
+    // to this group when lider_id was set. Check before inserting to avoid the
+    // unique constraint violation on idx_grupo_miembros_unique_activo.
+    const { data: alreadyMember } = await supabase
+      .from('grupo_miembros')
+      .select('id')
+      .eq('grupo_id', grupo.id)
+      .eq('persona_id', created.id)
+      .eq('activo', true)
+      .maybeSingle()
 
-    if (addErr) {
-      setNewPersonaError(addErr.message)
-      setNewPersonaLoading(false)
-      return
+    if (!alreadyMember) {
+      const today = new Date().toISOString().split('T')[0]
+      const { error: addErr } = await supabase.from('grupo_miembros').insert({
+        grupo_id: grupo.id,
+        persona_id: created.id,
+        fecha_ingreso: today,
+        activo: true,
+      })
+      if (addErr) {
+        setNewPersonaError(addErr.message)
+        setNewPersonaLoading(false)
+        return
+      }
     }
 
     const { data: updated } = await supabase
