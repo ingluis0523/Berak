@@ -40,6 +40,7 @@ interface Props {
   grupo: GrupoFull
   miembrosIniciales: GrupoMiembro[]
   eventosIniciales: Evento[]
+  currentPersonaId: string | null
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -82,7 +83,7 @@ function getMonthLabel(dateStr: string) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciales }: Props) {
+export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciales, currentPersonaId }: Props) {
   const supabase = createClient()
   const router = useRouter()
 
@@ -209,7 +210,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
       nombres: newPersonaForm.nombres.trim(),
       apellidos: newPersonaForm.apellidos.trim(),
       tipo_persona: newPersonaForm.tipo_persona,
-      lider_id: grupo.lider?.id ?? null,
+      lider_id: grupo.lider?.id ?? currentPersonaId ?? null,
     }
     if (newPersonaForm.telefono.trim()) payload.telefono = newPersonaForm.telefono.trim()
 

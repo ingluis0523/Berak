@@ -1,6 +1,7 @@
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/current-user'
 import GrupoDetalle from './grupo-detalle'
 
 interface Props {
@@ -16,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function GrupoPage({ params }: Props) {
   const { id } = await params
-  const supabase = await createClient()
+  const [supabase, currentUser] = await Promise.all([createClient(), getCurrentUser()])
 
   const { data: grupo } = await supabase
     .from('grupos')
@@ -82,6 +83,7 @@ export default async function GrupoPage({ params }: Props) {
       grupo={grupo}
       miembrosIniciales={miembros ?? []}
       eventosIniciales={eventosWithCount as import('@/types').Evento[]}
+      currentPersonaId={currentUser?.persona_id ?? null}
     />
   )
 }
