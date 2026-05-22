@@ -60,19 +60,15 @@ export default async function DashboardPage() {
   // ── KPI queries (parallel) ──────────────────────────────────────────────────
   const [
     { count: totalPersonas },
-    { count: nuevosDelMes },
     { count: gruposActivos },
     { count: eventosSemana },
     { data: recentPersonas },
     { data: upcomingEvents },
     { data: weeklyAttendance },
+    { data: estadoNuevoRow },
+    { data: estadoInactivoRow },
   ] = await Promise.all([
     supabase.from('personas').select('*', { count: 'exact', head: true }).is('deleted_at', null),
-    supabase
-      .from('personas')
-      .select('*', { count: 'exact', head: true })
-      .is('deleted_at', null)
-      .gte('fecha_registro', startOfMonth.toISOString()),
     supabase.from('grupos').select('*', { count: 'exact', head: true }).eq('estado', true).is('deleted_at', null),
     supabase
       .from('eventos')
@@ -100,26 +96,31 @@ export default async function DashboardPage() {
       .gte('fecha', new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
       .lte('fecha', now.toISOString().split('T')[0])
       .order('fecha', { ascending: true }),
+    supabase.from('estados_persona').select('id').ilike('nombre', 'nuevo').limit(1).maybeSingle(),
+    supabase.from('estados_persona').select('id').ilike('nombre', '%inactiv%').limit(1).maybeSingle(),
   ])
 
-  // ── Inactive count ─────────────────────────────────────────────────────────
-  // Inactive = personas whose estado_persona nombre contains 'inactivo' (case insensitive)
-  const { data: estadoInactivo } = await supabase
-    .from('estados_persona')
-    .select('id')
-    .ilike('nombre', '%inactiv%')
-    .limit(1)
-    .maybeSingle()
+  // ── Nuevos del mes + Inactivos (depend on estado IDs) ─────────────────────
+  const [nuevosDelMesResult, inactivosResult] = await Promise.all([
+    estadoNuevoRow?.id
+      ? supabase
+          .from('personas')
+          .select('*', { count: 'exact', head: true })
+          .is('deleted_at', null)
+          .gte('fecha_registro', startOfMonth.toISOString())
+          .eq('estado_persona_id', estadoNuevoRow.id)
+      : Promise.resolve({ count: 0 }),
+    estadoInactivoRow?.id
+      ? supabase
+          .from('personas')
+          .select('*', { count: 'exact', head: true })
+          .eq('estado_persona_id', estadoInactivoRow.id)
+          .is('deleted_at', null)
+      : Promise.resolve({ count: 0 }),
+  ])
 
-  let inactivos = 0
-  if (estadoInactivo?.id) {
-    const { count } = await supabase
-      .from('personas')
-      .select('*', { count: 'exact', head: true })
-      .eq('estado_persona_id', estadoInactivo.id)
-      .is('deleted_at', null)
-    inactivos = count ?? 0
-  }
+  const nuevosDelMes = nuevosDelMesResult.count ?? 0
+  const inactivos = inactivosResult.count ?? 0
 
   // ── Average attendance % ───────────────────────────────────────────────────
   let promedioAsistencia = 0

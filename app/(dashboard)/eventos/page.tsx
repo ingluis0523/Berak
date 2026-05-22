@@ -102,9 +102,9 @@ export default async function EventosPage({ searchParams }: PageProps) {
     return matchesSearch && matchesFecha
   }
 
-  const proximos = (eventosRaw ?? []).filter(
-    (e) => e.estado === 'programado' && e.fecha >= today && filterEvento(e as Evento)
-  ) as Evento[]
+  const proximos = (eventosRaw ?? [])
+    .filter((e) => e.estado === 'programado' && e.fecha >= today && filterEvento(e as Evento))
+    .sort((a, b) => a.fecha.localeCompare(b.fecha)) as Evento[]
 
   const realizados = (eventosRaw ?? []).filter(
     (e) => e.estado === 'realizado' && filterEvento(e as Evento)

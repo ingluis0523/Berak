@@ -36,11 +36,18 @@ interface GrupoFull extends Omit<Grupo, 'lider' | 'sublider' | 'anfitrion' | 're
   red: { id: string; nombre: string } | null
 }
 
+interface EstadoPersona {
+  id: string
+  nombre: string
+  color?: string | null
+}
+
 interface Props {
   grupo: GrupoFull
   miembrosIniciales: GrupoMiembro[]
   eventosIniciales: Evento[]
   currentPersonaId: string | null
+  estados: EstadoPersona[]
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -65,11 +72,11 @@ function initials(nombres: string, apellidos: string) {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+  return new Date(iso + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 function getWeekLabel(dateStr: string) {
-  const d = new Date(dateStr)
+  const d = new Date(dateStr + 'T00:00:00')
   const day = d.getDate()
   if (day <= 7) return 'Semana 1'
   if (day <= 14) return 'Semana 2'
@@ -78,22 +85,117 @@ function getWeekLabel(dateStr: string) {
 }
 
 function getMonthLabel(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
+}
+
+function groupEventos(events: Evento[]): Record<string, Record<string, Evento[]>> {
+  const grouped: Record<string, Record<string, Evento[]>> = {}
+  events.forEach((e) => {
+    const mes = getMonthLabel(e.fecha)
+    const semana = getWeekLabel(e.fecha)
+    if (!grouped[mes]) grouped[mes] = {}
+    if (!grouped[mes][semana]) grouped[mes][semana] = []
+    grouped[mes][semana].push(e)
+  })
+  return grouped
+}
+
+// ─── EventosAccordion ─────────────────────────────────────────────────────────
+
+function EventosAccordion({
+  grouped,
+  collapsed,
+  onToggle,
+  emptyMsg,
+  grupoId,
+}: {
+  grouped: Record<string, Record<string, Evento[]>>
+  collapsed: Set<string>
+  onToggle: (mes: string) => void
+  emptyMsg: string
+  grupoId: string
+}) {
+  if (Object.keys(grouped).length === 0) {
+    return <div className="py-6 text-center text-gray-400 text-sm">{emptyMsg}</div>
+  }
+  return (
+    <div className="space-y-3">
+      {Object.entries(grouped).map(([mes, semanas]) => {
+        const isCollapsed = collapsed.has(mes)
+        const totalEvts = Object.values(semanas).reduce((s, a) => s + a.length, 0)
+        return (
+          <div key={mes} className="border border-gray-100 rounded-xl overflow-hidden">
+            <button
+              type="button"
+              onClick={() => onToggle(mes)}
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-blue-50 hover:bg-blue-100 transition-colors"
+            >
+              <span className="text-sm font-semibold text-blue-800 capitalize">{mes}</span>
+              <div className="flex items-center gap-2 text-blue-600">
+                <span className="text-xs">{totalEvts} evento{totalEvts !== 1 ? 's' : ''}</span>
+                {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </div>
+            </button>
+            {!isCollapsed && (
+              <div className="p-4 space-y-4">
+                {Object.entries(semanas).map(([semana, evts]) => (
+                  <div key={semana}>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 ml-1">{semana}</p>
+                    <div className="space-y-2">
+                      {evts.map((e) => (
+                        <div key={e.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900">{e.nombre}</p>
+                            <p className="text-xs text-gray-500">
+                              {formatDate(e.fecha)}{e.hora_inicio && ` · ${e.hora_inicio.slice(0, 5)}`}
+                            </p>
+                          </div>
+                          {!e.grupo_id && <Badge variant="secondary" className="text-xs shrink-0">Global</Badge>}
+                          <Badge variant={e.estado === 'realizado' ? 'realizado' : e.estado === 'cancelado' ? 'cancelado' : 'programado'}>
+                            {e.estado}
+                          </Badge>
+                          {e.estado !== 'cancelado' && (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {e.estado === 'realizado' && (
+                                <Button variant="ghost" size="sm" asChild className="gap-1">
+                                  <Link href={`/eventos/${e.id}${!e.grupo_id ? `?grupo_id=${grupoId}` : ''}`}>
+                                    <Eye className="h-3.5 w-3.5" />Resumen
+                                  </Link>
+                                </Button>
+                              )}
+                              <Button variant="outline" size="sm" asChild className="gap-1">
+                                <Link href={`/asistencias/${e.id}${!e.grupo_id ? `?grupo_id=${grupoId}` : ''}`}>
+                                  <CalendarCheck className="h-3.5 w-3.5" />Asistencia
+                                </Link>
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciales, currentPersonaId }: Props) {
+export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciales, currentPersonaId, estados }: Props) {
   const supabase = createClient()
   const router = useRouter()
 
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
   const [miembros, setMiembros] = useState<GrupoMiembro[]>(miembrosIniciales)
-  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(() => {
-    const currentLabel = getMonthLabel(new Date().toISOString().split('T')[0])
-    const allMonths = new Set(eventosIniciales.map((e) => getMonthLabel(e.fecha)))
-    allMonths.delete(currentLabel)
-    return allMonths
-  })
+  const [collapsedProximos, setCollapsedProximos] = useState<Set<string>>(new Set())
+  const [collapsedPasados, setCollapsedPasados] = useState<Set<string>>(new Set())
 
   // ── Agregar miembro (multi-select) ───────────────────────────────────────
   const [searchPersona, setSearchPersona] = useState('')
@@ -104,7 +206,6 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
   const [addError, setAddError] = useState<string | null>(null)
   const [removeLoadingId, setRemoveLoadingId] = useState<string | null>(null)
 
-  // IDs de personas que ya son miembros activos (para excluirlas del buscador)
   const existingMemberPersonaIds = useMemo(
     () => new Set(miembros.map((m) => (m.persona as Persona | undefined)?.id).filter(Boolean) as string[]),
     [miembros]
@@ -187,13 +288,13 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
 
   const [newPersonaOpen, setNewPersonaOpen] = useState(false)
   const [newPersonaForm, setNewPersonaForm] = useState({
-    nombres: '', apellidos: '', tipo_persona: 'miembro', telefono: '',
+    nombres: '', apellidos: '', tipo_persona: 'miembro', telefono: '', estado_persona_id: '',
   })
   const [newPersonaLoading, setNewPersonaLoading] = useState(false)
   const [newPersonaError, setNewPersonaError] = useState<string | null>(null)
 
   function openNewPersona() {
-    setNewPersonaForm({ nombres: '', apellidos: '', tipo_persona: 'miembro', telefono: '' })
+    setNewPersonaForm({ nombres: '', apellidos: '', tipo_persona: 'miembro', telefono: '', estado_persona_id: '' })
     setNewPersonaError(null)
     setNewPersonaOpen(true)
   }
@@ -213,6 +314,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
       lider_id: grupo.lider?.id ?? currentPersonaId ?? null,
     }
     if (newPersonaForm.telefono.trim()) payload.telefono = newPersonaForm.telefono.trim()
+    if (newPersonaForm.estado_persona_id) payload.estado_persona_id = newPersonaForm.estado_persona_id
 
     const { data: created, error: createErr } = await supabase
       .from('personas')
@@ -226,9 +328,8 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
       return
     }
 
-    // The assign_persona_to_lider_grupo trigger may have already added the persona
-    // to this group when lider_id was set. Check before inserting to avoid the
-    // unique constraint violation on idx_grupo_miembros_unique_activo.
+    // The assign_persona_to_lider_grupo trigger may have already added this persona
+    // to this group (or a different group if the leader leads multiple groups).
     const { data: alreadyMember } = await supabase
       .from('grupo_miembros')
       .select('id')
@@ -245,7 +346,17 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
         fecha_ingreso: today,
         activo: true,
       })
-      if (addErr) {
+      if (addErr?.code === '23505') {
+        // Trigger added persona to a different group (leader leads multiple groups).
+        // Deactivate the wrong membership and insert in the correct group.
+        await supabase.from('grupo_miembros')
+          .update({ activo: false, fecha_salida: today })
+          .eq('persona_id', created.id)
+          .eq('activo', true)
+        await supabase.from('grupo_miembros').insert({
+          grupo_id: grupo.id, persona_id: created.id, fecha_ingreso: today, activo: true,
+        })
+      } else if (addErr) {
         setNewPersonaError(addErr.message)
         setNewPersonaLoading(false)
         return
@@ -264,51 +375,45 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
     setNewPersonaOpen(false)
   }
 
-  // ── Eventos agrupados ────────────────────────────────────────────────────
+  // ── Eventos: split en próximos y pasados ─────────────────────────────────
 
-  const eventosAgrupados = useMemo(() => {
-    const grouped: Record<string, Record<string, Evento[]>> = {}
-    const sorted = [...eventosIniciales].sort(
-      (a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
-    )
-    sorted.forEach((e) => {
-      const mes = getMonthLabel(e.fecha)
-      const semana = getWeekLabel(e.fecha)
-      if (!grouped[mes]) grouped[mes] = {}
-      if (!grouped[mes][semana]) grouped[mes][semana] = []
-      grouped[mes][semana].push(e)
+  const { proximosGrouped, pasadosGrouped, totalProximos, totalPasados } = useMemo(() => {
+    const proximos = [...eventosIniciales]
+      .filter(e => e.estado === 'programado' && e.fecha >= todayStr)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    const pasados = [...eventosIniciales]
+      .filter(e => e.estado !== 'programado' || e.fecha < todayStr)
+      .sort((a, b) => b.fecha.localeCompare(a.fecha))
+    return {
+      proximosGrouped: groupEventos(proximos),
+      pasadosGrouped: groupEventos(pasados),
+      totalProximos: proximos.length,
+      totalPasados: pasados.length,
+    }
+  }, [eventosIniciales, todayStr])
+
+  function toggleMes(setter: React.Dispatch<React.SetStateAction<Set<string>>>, mes: string) {
+    setter(prev => {
+      const next = new Set(prev)
+      if (next.has(mes)) next.delete(mes)
+      else next.add(mes)
+      return next
     })
+  }
 
-    const now = new Date()
-    const currentMonthLabel = getMonthLabel(now.toISOString().split('T')[0])
-    const mesKeys = Object.keys(grouped)
-    mesKeys.sort((a, b) => {
-      if (a === currentMonthLabel) return -1
-      if (b === currentMonthLabel) return 1
-      const dateA = new Date(grouped[a][Object.keys(grouped[a])[0]][0].fecha)
-      const dateB = new Date(grouped[b][Object.keys(grouped[b])[0]][0].fecha)
-      const diffA = dateA.getTime() - now.getTime()
-      const diffB = dateB.getTime() - now.getTime()
-      if (diffA >= 0 && diffB >= 0) return diffA - diffB
-      if (diffA < 0 && diffB < 0) return diffB - diffA
-      return diffA >= 0 ? -1 : 1
-    })
-    const ordered: typeof grouped = {}
-    mesKeys.forEach((k) => (ordered[k] = grouped[k]))
-    return ordered
-  }, [eventosIniciales])
-
-  // ── Asistencias (últimas 8 semanas) ─────────────────────────────────────
+  // ── Asistencias (últimas 8 eventos pasados) ──────────────────────────────
 
   const asistenciaResumen = useMemo(() => {
-    const ultimos8 = eventosIniciales.slice(0, 8)
-    return ultimos8.map((e) => ({
+    const pasados = eventosIniciales
+      .filter(e => e.fecha <= todayStr && e.estado !== 'cancelado')
+      .slice(0, 8)
+    return pasados.map((e) => ({
       evento: e,
       porcentaje: e.asistencias_count != null && miembros.length > 0
         ? Math.round((e.asistencias_count / miembros.length) * 100)
         : null,
     }))
-  }, [eventosIniciales, miembros.length])
+  }, [eventosIniciales, miembros.length, todayStr])
 
   const nombrePersona = (p?: Pick<Persona, 'nombres' | 'apellidos'> | null) =>
     p ? `${p.nombres} ${p.apellidos}` : '—'
@@ -433,75 +538,39 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
               <h2 className="font-semibold text-gray-800">Eventos del grupo</h2>
             </div>
 
-            {Object.keys(eventosAgrupados).length === 0 ? (
+            {eventosIniciales.length === 0 ? (
               <div className="py-12 text-center text-gray-400">No hay eventos registrados</div>
             ) : (
-              <div className="p-5 space-y-3">
-                {Object.entries(eventosAgrupados).map(([mes, semanas]) => {
-                  const isCollapsed = collapsedMonths.has(mes)
-                  const totalEvtsInMes = Object.values(semanas).reduce((s, a) => s + a.length, 0)
-                  return (
-                    <div key={mes} className="border border-gray-100 rounded-xl overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setCollapsedMonths(prev => {
-                          const next = new Set(prev)
-                          if (next.has(mes)) next.delete(mes)
-                          else next.add(mes)
-                          return next
-                        })}
-                        className="w-full flex items-center justify-between px-4 py-2.5 bg-blue-50 hover:bg-blue-100 transition-colors"
-                      >
-                        <span className="text-sm font-semibold text-blue-800 capitalize">{mes}</span>
-                        <div className="flex items-center gap-2 text-blue-600">
-                          <span className="text-xs">{totalEvtsInMes} evento{totalEvtsInMes !== 1 ? 's' : ''}</span>
-                          {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </div>
-                      </button>
-                      {!isCollapsed && (
-                        <div className="p-4 space-y-4">
-                          {Object.entries(semanas).map(([semana, evts]) => (
-                            <div key={semana}>
-                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 ml-1">{semana}</p>
-                              <div className="space-y-2">
-                                {evts.map((e) => (
-                                  <div key={e.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-gray-900">{e.nombre}</p>
-                                      <p className="text-xs text-gray-500">
-                                        {formatDate(e.fecha)}{e.hora_inicio && ` · ${e.hora_inicio.slice(0, 5)}`}
-                                      </p>
-                                    </div>
-                                    {!e.grupo_id && <Badge variant="secondary" className="text-xs shrink-0">Global</Badge>}
-                                    <Badge variant={e.estado === 'realizado' ? 'realizado' : e.estado === 'cancelado' ? 'cancelado' : 'programado'}>
-                                      {e.estado}
-                                    </Badge>
-                                    {e.estado !== 'cancelado' && (
-                                      <div className="flex items-center gap-1.5 shrink-0">
-                                        {e.estado === 'realizado' && (
-                                          <Button variant="ghost" size="sm" asChild className="gap-1">
-                                            <Link href={`/eventos/${e.id}${!e.grupo_id ? `?grupo_id=${grupo.id}` : ''}`}>
-                                              <Eye className="h-3.5 w-3.5" />Resumen
-                                            </Link>
-                                          </Button>
-                                        )}
-                                        <Button variant="outline" size="sm" asChild className="gap-1">
-                                          <Link href={`/asistencias/${e.id}${!e.grupo_id ? `?grupo_id=${grupo.id}` : ''}`}>
-                                            <CalendarCheck className="h-3.5 w-3.5" />Asistencia
-                                          </Link>
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+              <div className="p-5 space-y-6">
+                {/* Próximos */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                    Próximos · {totalProximos}
+                  </p>
+                  <EventosAccordion
+                    grouped={proximosGrouped}
+                    collapsed={collapsedProximos}
+                    onToggle={(mes) => toggleMes(setCollapsedProximos, mes)}
+                    emptyMsg="No hay eventos próximos programados"
+                    grupoId={grupo.id}
+                  />
+                </div>
+
+                <div className="border-t border-gray-100" />
+
+                {/* Pasados / Realizados */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                    Realizados y pasados · {totalPasados}
+                  </p>
+                  <EventosAccordion
+                    grouped={pasadosGrouped}
+                    collapsed={collapsedPasados}
+                    onToggle={(mes) => toggleMes(setCollapsedPasados, mes)}
+                    emptyMsg="No hay eventos realizados"
+                    grupoId={grupo.id}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -674,6 +743,26 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                 />
               </div>
             </div>
+
+            {estados.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">Estado de persona</label>
+                <Select
+                  value={newPersonaForm.estado_persona_id || '__none__'}
+                  onValueChange={(v) => setNewPersonaForm((f) => ({ ...f, estado_persona_id: v === '__none__' ? '' : v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sin estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin estado</SelectItem>
+                    {estados.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>{e.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {newPersonaError && <p className="text-xs text-red-500">{newPersonaError}</p>}
           </div>

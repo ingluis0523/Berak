@@ -34,12 +34,18 @@ export default async function GrupoPage({ params }: Props) {
 
   if (!grupo) notFound()
 
-  const { data: miembros } = await supabase
-    .from('grupo_miembros')
-    .select('*, persona:personas(id,nombres,apellidos,tipo_persona,foto_url)')
-    .eq('grupo_id', id)
-    .eq('activo', true)
-    .order('fecha_ingreso', { ascending: false })
+  const [{ data: miembros }, { data: estados }] = await Promise.all([
+    supabase
+      .from('grupo_miembros')
+      .select('*, persona:personas(id,nombres,apellidos,tipo_persona,foto_url)')
+      .eq('grupo_id', id)
+      .eq('activo', true)
+      .order('fecha_ingreso', { ascending: false }),
+    supabase
+      .from('estados_persona')
+      .select('id, nombre, color')
+      .order('nombre'),
+  ])
 
   // Fetch group events AND global events (grupo_id IS NULL)
   const { data: eventos } = await supabase
@@ -84,6 +90,7 @@ export default async function GrupoPage({ params }: Props) {
       miembrosIniciales={miembros ?? []}
       eventosIniciales={eventosWithCount as import('@/types').Evento[]}
       currentPersonaId={currentUser?.persona_id ?? null}
+      estados={estados ?? []}
     />
   )
 }

@@ -29,12 +29,29 @@ export default async function RedDetailPage({ params }: PageProps) {
   const hasFullAccess = currentUser?.is_admin || currentUser?.hasPermission('acceso_todas_redes')
   const canEditar = currentUser?.hasPermission('editar_redes') ?? true
 
-  const { data: red } = await supabase
-    .from('redes')
-    .select('*, lider:personas!lider_id(id, nombres, apellidos)')
-    .eq('id', id)
-    .is('deleted_at', null)
-    .maybeSingle()
+  const now = new Date()
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  const [{ data: red }, { data: grupos }, { data: estadoNuevoRow }] = await Promise.all([
+    supabase
+      .from('redes')
+      .select('*, lider:personas!lider_id(id, nombres, apellidos)')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    supabase
+      .from('grupos')
+      .select('id, nombre, estado, lider:personas!lider_id(id, nombres, apellidos)')
+      .eq('red_id', id)
+      .is('deleted_at', null)
+      .order('nombre'),
+    supabase
+      .from('estados_persona')
+      .select('id')
+      .ilike('nombre', 'nuevo')
+      .limit(1)
+      .maybeSingle(),
+  ])
 
   if (!red) notFound()
 
@@ -47,37 +64,44 @@ export default async function RedDetailPage({ params }: PageProps) {
     }
   }
 
-  const { data: grupos } = await supabase
-    .from('grupos')
-    .select('id, nombre, estado, lider:personas!lider_id(id, nombres, apellidos)')
-    .eq('red_id', id)
-    .is('deleted_at', null)
-    .order('nombre')
-
   const grupoIds = (grupos ?? []).map((g) => g.id)
 
   // All active members across all groups in this red
-  type PersonaRow = { id: string; nombres: string; apellidos: string; tipo_persona: string; grupo_nombre: string }
+  type PersonaRow = {
+    id: string; nombres: string; apellidos: string; tipo_persona: string
+    grupo_nombre: string; estado_persona_id?: string | null; fecha_registro?: string | null
+  }
   const personas: PersonaRow[] = []
 
   if (grupoIds.length > 0) {
     const { data: miembros } = await supabase
       .from('grupo_miembros')
-      .select('persona:personas(id, nombres, apellidos, tipo_persona), grupo:grupos(nombre, id)')
+      .select('persona:personas(id, nombres, apellidos, tipo_persona, estado_persona_id, fecha_registro), grupo:grupos(nombre, id)')
       .in('grupo_id', grupoIds)
       .eq('activo', true)
 
     const seen = new Set<string>()
     for (const m of miembros ?? []) {
-      const p = (Array.isArray(m.persona) ? m.persona[0] : m.persona) as Pick<Persona, 'id' | 'nombres' | 'apellidos' | 'tipo_persona'> | null
+      const p = (Array.isArray(m.persona) ? m.persona[0] : m.persona) as (Pick<Persona, 'id' | 'nombres' | 'apellidos' | 'tipo_persona'> & { estado_persona_id?: string | null; fecha_registro?: string | null }) | null
       const g = (Array.isArray(m.grupo) ? m.grupo[0] : m.grupo) as { nombre: string; id: string } | null
       if (p && !seen.has(p.id)) {
         seen.add(p.id)
-        personas.push({ id: p.id, nombres: p.nombres, apellidos: p.apellidos, tipo_persona: p.tipo_persona, grupo_nombre: g?.nombre ?? '—' })
+        personas.push({
+          id: p.id, nombres: p.nombres, apellidos: p.apellidos, tipo_persona: p.tipo_persona,
+          grupo_nombre: g?.nombre ?? '—', estado_persona_id: p.estado_persona_id, fecha_registro: p.fecha_registro,
+        })
       }
     }
     personas.sort((a, b) => a.nombres.localeCompare(b.nombres))
   }
+
+  // Count personas nuevas del mes in this red (estado='nuevo' + fecha_registro this month)
+  const personasNuevasMes = estadoNuevoRow?.id
+    ? personas.filter(p =>
+        p.estado_persona_id === estadoNuevoRow.id &&
+        (p.fecha_registro ?? '') >= startOfMonth.toISOString()
+      ).length
+    : 0
 
   const liderRaw = red.lider as unknown
   const lider = (Array.isArray(liderRaw) ? liderRaw[0] : liderRaw) as Pick<Persona, 'id' | 'nombres' | 'apellidos'> | null
@@ -125,11 +149,11 @@ export default async function RedDetailPage({ params }: PageProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-5">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Líder de red</p>
-            <p className="font-semibold text-gray-900">
+            <p className="font-semibold text-gray-900 text-sm">
               {lider
                 ? `${lider.nombres} ${lider.apellidos}`
                 : <span className="text-gray-400 font-normal">Sin asignar</span>
@@ -149,6 +173,12 @@ export default async function RedDetailPage({ params }: PageProps) {
             <p className="text-2xl font-bold text-gray-900">{personas.length}</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="pt-5">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Nuevos del mes</p>
+            <p className="text-2xl font-bold text-gray-900">{personasNuevasMes}</p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -164,7 +194,7 @@ export default async function RedDetailPage({ params }: PageProps) {
             {!grupos || grupos.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-6">No hay grupos en esta red</p>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto -mx-6 px-6">
                 {grupos.map((g) => {
                   const lGRaw = g.lider as unknown
                   const lG = (Array.isArray(lGRaw) ? lGRaw[0] : lGRaw) as Pick<Persona, 'nombres' | 'apellidos'> | null
@@ -204,7 +234,7 @@ export default async function RedDetailPage({ params }: PageProps) {
             {lideresSet.size === 0 ? (
               <p className="text-sm text-gray-400 text-center py-6">No hay líderes asignados</p>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto -mx-6 px-6">
                 {[...lideresSet.entries()].map(([personaId, nombre]) => (
                   <div key={personaId} className="flex items-center gap-3 py-3 first:pt-0">
                     <div className="h-8 w-8 shrink-0 rounded-full bg-indigo-700 text-white text-xs font-semibold flex items-center justify-center">
