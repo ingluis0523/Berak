@@ -47,13 +47,12 @@ export default async function GrupoPage({ params }: Props) {
       .order('nombre'),
   ])
 
-  // Fetch group events AND global events (grupo_id IS NULL)
+  // Fetch group events AND global events (grupo_id IS NULL) — no limit, groups won't have thousands
   const { data: eventos } = await supabase
     .from('eventos')
     .select('id, nombre, fecha, hora_inicio, hora_fin, estado, descripcion, grupo_id')
     .or(`grupo_id.eq.${id},grupo_id.is.null`)
     .order('fecha', { ascending: false })
-    .limit(50)
 
   const eventoIds = (eventos ?? []).map((e) => e.id)
 
