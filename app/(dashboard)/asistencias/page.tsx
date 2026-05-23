@@ -60,7 +60,17 @@ export default async function AsistenciasPage({ searchParams }: PageProps) {
     eventosQuery = eventosQuery.eq('fecha', fechaFilter)
   }
 
-  const { data: eventos } = await eventosQuery
+  const { data: eventosRaw } = await eventosQuery
+
+  // Sort: past events most-recent-first, then upcoming events soonest-first
+  const today = new Date().toISOString().split('T')[0]
+  const eventos = [...(eventosRaw ?? [])].sort((a, b) => {
+    const aIsPast = a.fecha <= today
+    const bIsPast = b.fecha <= today
+    if (aIsPast && bIsPast) return b.fecha.localeCompare(a.fecha) // most recent past first
+    if (!aIsPast && !bIsPast) return a.fecha.localeCompare(b.fecha) // soonest future first
+    return aIsPast ? -1 : 1                                         // past before future
+  })
 
   // Get attendance counts per event
   const eventoIds = (eventos ?? []).map((e) => e.id)
