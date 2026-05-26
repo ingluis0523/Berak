@@ -18,6 +18,7 @@ import {
   BookOpen,
   LogOut,
   Cake,
+  Heart,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/shared/logo'
@@ -44,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Ministerios',  href: '/ministerios',   icon: Church,          section: 'iglesia',   module: 'ministerios' },
   { label: 'Eventos',      href: '/eventos',       icon: CalendarDays,    section: 'operativo', module: 'eventos' },
   { label: 'Asistencias',  href: '/asistencias',   icon: ClipboardCheck,  section: 'operativo', module: 'asistencias' },
+  { label: 'Evangelismo',  href: '/evangelismo',   icon: Heart,           section: 'operativo', module: 'evangelismo' },
   { label: 'Cumpleaños',   href: '/cumpleanos',    icon: Cake,            section: 'operativo', adminOnly: true },
   { label: 'Reportes',     href: '/reportes',      icon: BarChart3,       section: 'reportes',  module: 'reportes' },
   { label: 'Usuarios',     href: '/usuarios',      icon: BookOpen,        section: 'sistema',   module: 'usuarios' },
@@ -76,8 +78,9 @@ export function Sidebar({ isAdmin, hasRole, permisos }: SidebarProps) {
       grupos:      ['grupos', 'miembros'],
       ministerios: ['ministerios'],
       eventos:     ['eventos'],
-      asistencias: ['asistencias'],
-      reportes:    ['reportes'],
+      asistencias:  ['asistencias'],
+      evangelismo:  ['evangelismo'],
+      reportes:     ['reportes'],
       usuarios:    ['usuarios'],
       roles:       ['roles'],
     }

@@ -290,3 +290,49 @@ export interface TableFilter {
   grupo_id?: string
   [key: string]: string | undefined
 }
+
+// ─── Evangelismo ──────────────────────────────────────────────────────────────
+
+export type TipoSeguimiento = 'contacto' | 'visita' | 'reunion' | 'oracion' | 'otro'
+export type ResultadoSeguimiento = 'positivo' | 'neutral' | 'pendiente' | 'sin_respuesta'
+
+export interface Evangelismo {
+  id: UUID
+  persona_id: UUID
+  evangelizador_id: UUID | null
+  encargado_id: UUID | null
+  fecha_evangelismo: string
+  lugar: string | null
+  notas: string | null
+  deleted_at: string | null
+  created_at: string
+  updated_at: string
+  persona?: Pick<Persona, 'id' | 'nombres' | 'apellidos' | 'foto_url' | 'estado_persona_id'> & {
+    estado_persona?: Pick<EstadoPersona, 'id' | 'nombre' | 'color'> | null
+  }
+  evangelizador?: Pick<Persona, 'id' | 'nombres' | 'apellidos'>
+  encargado?: Pick<Persona, 'id' | 'nombres' | 'apellidos'>
+  seguimientos?: EvangelismoSeguimiento[]
+}
+
+export interface EvangelismoSeguimiento {
+  id: UUID
+  evangelismo_id: UUID
+  fecha: string
+  tipo: TipoSeguimiento
+  descripcion: string | null
+  responsable_id: UUID | null
+  resultado: ResultadoSeguimiento | null
+  created_at: string
+  responsable?: Pick<Persona, 'id' | 'nombres' | 'apellidos'> | null
+}
+
+export interface PersonaEstadoHistorial {
+  id: UUID
+  persona_id: UUID
+  estado_id: UUID | null
+  estado_nombre: string | null
+  cambiado_por: UUID | null
+  notas: string | null
+  created_at: string
+}
