@@ -570,7 +570,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                 <div>
                   <h2 className="font-semibold text-gray-800">Miembros nuevos</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Personas con estado "Nuevo" en este grupo</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Personas con estado &quot;Nuevo&quot; en este grupo</p>
                 </div>
                 <span className="text-2xl font-bold text-green-700">{nuevosMiembros.length}</span>
               </div>
