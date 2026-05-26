@@ -7,7 +7,7 @@ import { formatDate, getInitials } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Users, Network, UserCircle, Pencil } from 'lucide-react'
+import { ArrowLeft, Users, Network, UserCircle, Pencil, BarChart2 } from 'lucide-react'
 import type { Persona } from '@/types'
 
 interface PageProps {
@@ -132,10 +132,16 @@ export default async function RedDetailPage({ params }: PageProps) {
             {red.descripcion && <p className="text-sm text-gray-500 mt-1">{red.descripcion}</p>}
             <p className="text-xs text-gray-400 mt-1">Creada {formatDate(red.created_at)}</p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
             <Badge variant={red.estado ? 'success' : 'inactivo'}>
               {red.estado ? 'Activa' : 'Inactiva'}
             </Badge>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/redes/${id}/reporte`}>
+                <BarChart2 size={14} />
+                Reporte
+              </Link>
+            </Button>
             {canEditar && (
               <Button variant="outline" size="sm" asChild>
                 <Link href={`/redes/${id}/editar`}>
