@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,11 +25,12 @@ interface KpiCardProps {
   trend?: string
   iconBg?: string
   iconColor?: string
+  href?: string
 }
 
-function KpiCard({ icon, label, value, trend, iconBg = 'bg-blue-50', iconColor = 'text-blue-700' }: KpiCardProps) {
-  return (
-    <Card>
+function KpiCard({ icon, label, value, trend, iconBg = 'bg-blue-50', iconColor = 'text-blue-700', href }: KpiCardProps) {
+  const inner = (
+    <Card className={href ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all' : ''}>
       <CardContent className="flex items-center gap-4 p-5">
         <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor}`}>
           {icon}
@@ -37,10 +39,13 @@ function KpiCard({ icon, label, value, trend, iconBg = 'bg-blue-50', iconColor =
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide truncate">{label}</p>
           <p className="text-2xl font-bold text-gray-900 leading-tight">{value}</p>
           {trend && <p className="text-xs text-gray-400 mt-0.5">{trend}</p>}
+          {href && <p className="text-xs text-blue-500 mt-0.5">Ver detalle →</p>}
         </div>
       </CardContent>
     </Card>
   )
+  if (href) return <Link href={href}>{inner}</Link>
+  return inner
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -164,6 +169,7 @@ export default async function DashboardPage() {
           value={totalPersonas ?? 0}
           iconBg="bg-blue-50"
           iconColor="text-blue-700"
+          href="/dashboard/detalle?tipo=total_personas"
         />
         <KpiCard
           icon={<UserPlus size={22} />}
@@ -171,6 +177,7 @@ export default async function DashboardPage() {
           value={nuevosDelMes ?? 0}
           iconBg="bg-green-50"
           iconColor="text-green-700"
+          href="/dashboard/detalle?tipo=nuevos_mes"
         />
         <KpiCard
           icon={<UsersRound size={22} />}
@@ -178,6 +185,7 @@ export default async function DashboardPage() {
           value={gruposActivos ?? 0}
           iconBg="bg-purple-50"
           iconColor="text-purple-700"
+          href="/dashboard/detalle?tipo=grupos_activos"
         />
         <KpiCard
           icon={<CalendarDays size={22} />}
@@ -185,6 +193,7 @@ export default async function DashboardPage() {
           value={eventosSemana ?? 0}
           iconBg="bg-yellow-50"
           iconColor="text-yellow-700"
+          href="/dashboard/detalle?tipo=eventos_semana"
         />
         <KpiCard
           icon={<TrendingUp size={22} />}
@@ -199,6 +208,7 @@ export default async function DashboardPage() {
           value={inactivos}
           iconBg="bg-orange-50"
           iconColor="text-orange-600"
+          href="/dashboard/detalle?tipo=inactivos"
         />
       </div>
 

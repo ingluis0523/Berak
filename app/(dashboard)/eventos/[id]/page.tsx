@@ -93,9 +93,27 @@ export default async function EventoDetallePage({ params, searchParams }: PagePr
   const { data: asistencias } = await asistQuery
   const asist = (asistencias ?? []) as (Asistencia & { persona: Persona | null })[]
 
-  const asistio   = asist.filter((a) => a.estado === 'asistio')
-  const noAsistio = asist.filter((a) => a.estado === 'no_asistio')
+  const asistio    = asist.filter((a) => a.estado === 'asistio')
+  const noAsistio  = asist.filter((a) => a.estado === 'no_asistio')
   const visitantes = asist.filter((a) => a.estado === 'visitante' || a.estado === 'primera_vez')
+
+  // Implicit absents: group members with no attendance record at all
+  type PersonaBasic = Pick<Persona, 'id' | 'nombres' | 'apellidos' | 'tipo_persona'>
+  let implicitAbsentes: PersonaBasic[] = []
+
+  if (grupoContexto && memberIdsForFilter && memberIdsForFilter.length > 0) {
+    const recordedIds = new Set(
+      asist.filter((a) => a.persona_id && !a.es_visitante).map((a) => a.persona_id!)
+    )
+    const unrecorded = memberIdsForFilter.filter((id) => !recordedIds.has(id))
+    if (unrecorded.length > 0) {
+      const { data: mp } = await supabase
+        .from('personas')
+        .select('id, nombres, apellidos, tipo_persona')
+        .in('id', unrecorded)
+      implicitAbsentes = (mp ?? []) as PersonaBasic[]
+    }
+  }
 
   // Total = group members count (event group or filtered group)
   // For global events with no group context → count all unique active members across all groups
@@ -112,6 +130,7 @@ export default async function EventoDetallePage({ params, searchParams }: PagePr
     if (uniqueIds.size > 0) totalMiembros = uniqueIds.size
   }
 
+  const totalAusentes = noAsistio.length + implicitAbsentes.length
   const pct = totalMiembros > 0 ? Math.round((asistio.length / totalMiembros) * 100) : 0
 
   return (
@@ -223,7 +242,7 @@ export default async function EventoDetallePage({ params, searchParams }: PagePr
               <StatBox
                 icon={<UserX className="h-5 w-5 text-red-400" />}
                 label="No asistieron"
-                value={noAsistio.length}
+                value={totalAusentes}
                 color="text-red-600"
               />
               <StatBox
@@ -259,55 +278,128 @@ export default async function EventoDetallePage({ params, searchParams }: PagePr
         </Card>
       )}
 
-      {/* Attendees list */}
-      {asist.length > 0 && (
-        <Card>
-          <CardContent className="p-0">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-900">Lista de asistentes</h2>
-            </div>
-            <ul className="divide-y divide-gray-100">
-              {asist.map((a) => {
-                const persona = a.persona
-                const nombre = a.es_visitante || !persona
-                  ? (a.nombre_visitante ?? 'Visitante')
-                  : `${persona.nombres} ${persona.apellidos}`
-                const initials = persona
-                  ? getInitials(persona.nombres, persona.apellidos)
-                  : (nombre.charAt(0) + (nombre.split(' ')[1]?.charAt(0) ?? '')).toUpperCase()
+      {/* Attendance sections */}
+      {(asist.length > 0 || implicitAbsentes.length > 0) && (
+        <div className="space-y-4">
+          {/* ── Asistieron ── */}
+          {asistio.length > 0 && (
+            <Card>
+              <CardContent className="p-0">
+                <div className="px-5 py-3 border-b border-green-100 bg-green-50 flex items-center gap-2">
+                  <UserCheck className="h-4 w-4 text-green-600" />
+                  <h2 className="font-semibold text-green-800">
+                    Asistieron <span className="font-normal text-green-600">({asistio.length})</span>
+                  </h2>
+                </div>
+                <ul className="divide-y divide-gray-100">
+                  {asistio.map((a) => {
+                    const p = a.persona
+                    const nombre = p ? `${p.nombres} ${p.apellidos}` : (a.nombre_visitante ?? 'Persona')
+                    return (
+                      <li key={a.id} className="flex items-center gap-3 px-5 py-3 bg-green-50/30">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarFallback className="text-xs bg-green-100 text-green-700">
+                            {p ? getInitials(p.nombres, p.apellidos) : nombre.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{nombre}</p>
+                          {p && <p className="text-xs text-gray-400 capitalize">{p.tipo_persona}</p>}
+                        </div>
+                        <Badge variant="success">Asistió</Badge>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
-                return (
-                  <li key={a.id} className="flex items-center gap-3 px-5 py-3">
-                    <Avatar className="h-9 w-9 shrink-0">
-                      <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{nombre}</p>
-                      {a.telefono_visitante && (
-                        <p className="text-xs text-gray-500">{a.telefono_visitante}</p>
-                      )}
-                    </div>
-                    <Badge
-                      variant={
-                        a.estado === 'asistio'
-                          ? 'success'
-                          : a.estado === 'no_asistio'
-                          ? 'danger'
-                          : a.estado === 'primera_vez'
-                          ? 'warning'
-                          : 'visitante'
-                      }
-                    >
-                      {ESTADO_ASISTENCIA_LABELS[a.estado] ?? a.estado}
-                    </Badge>
-                  </li>
-                )
-              })}
-            </ul>
-          </CardContent>
-        </Card>
+          {/* ── No asistieron ── */}
+          {(noAsistio.length > 0 || implicitAbsentes.length > 0) && (
+            <Card>
+              <CardContent className="p-0">
+                <div className="px-5 py-3 border-b border-red-100 bg-red-50 flex items-center gap-2">
+                  <UserX className="h-4 w-4 text-red-500" />
+                  <h2 className="font-semibold text-red-700">
+                    No asistieron <span className="font-normal text-red-500">({totalAusentes})</span>
+                  </h2>
+                </div>
+                <ul className="divide-y divide-gray-100">
+                  {noAsistio.map((a) => {
+                    const p = a.persona
+                    const nombre = p ? `${p.nombres} ${p.apellidos}` : (a.nombre_visitante ?? 'Persona')
+                    return (
+                      <li key={a.id} className="flex items-center gap-3 px-5 py-3">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarFallback className="text-xs bg-red-100 text-red-600">
+                            {p ? getInitials(p.nombres, p.apellidos) : nombre.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{nombre}</p>
+                          {p && <p className="text-xs text-gray-400 capitalize">{p.tipo_persona}</p>}
+                        </div>
+                        <Badge variant="danger">Ausente</Badge>
+                      </li>
+                    )
+                  })}
+                  {implicitAbsentes.map((p) => (
+                    <li key={p.id} className="flex items-center gap-3 px-5 py-3">
+                      <Avatar className="h-8 w-8 shrink-0">
+                        <AvatarFallback className="text-xs bg-gray-100 text-gray-500">
+                          {getInitials(p.nombres, p.apellidos)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-700 truncate">{p.nombres} {p.apellidos}</p>
+                        <p className="text-xs text-gray-400 capitalize">{p.tipo_persona}</p>
+                      </div>
+                      <Badge variant="secondary">Sin registrar</Badge>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── Visitantes / Primera vez ── */}
+          {visitantes.length > 0 && (
+            <Card>
+              <CardContent className="p-0">
+                <div className="px-5 py-3 border-b border-yellow-100 bg-yellow-50 flex items-center gap-2">
+                  <Star className="h-4 w-4 text-yellow-600" />
+                  <h2 className="font-semibold text-yellow-800">
+                    Visitantes <span className="font-normal text-yellow-600">({visitantes.length})</span>
+                  </h2>
+                </div>
+                <ul className="divide-y divide-gray-100">
+                  {visitantes.map((a) => {
+                    const nombre = a.nombre_visitante ?? (a.persona ? `${a.persona.nombres} ${a.persona.apellidos}` : 'Visitante')
+                    return (
+                      <li key={a.id} className="flex items-center gap-3 px-5 py-3">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarFallback className="text-xs bg-yellow-100 text-yellow-700">
+                            {nombre.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{nombre}</p>
+                          {a.telefono_visitante && (
+                            <p className="text-xs text-gray-500">{a.telefono_visitante}</p>
+                          )}
+                        </div>
+                        <Badge variant={a.estado === 'primera_vez' ? 'warning' : 'visitante'}>
+                          {a.estado === 'primera_vez' ? 'Primera vez' : 'Visitante'}
+                        </Badge>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       {asist.length === 0 && (
