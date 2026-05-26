@@ -195,3 +195,66 @@ export function getPasswordResetTemplate(): string {
     </table>
   `)
 }
+
+// ─── Email: Felicitación de cumpleaños ────────────────────────────────────────
+
+export async function sendBirthdayEmail({
+  to,
+  nombre,
+  apellidos,
+}: {
+  to: string
+  nombre: string
+  apellidos: string
+}) {
+  const html = emailWrapper(`
+    <!-- Celebration header -->
+    <div style="text-align:center;margin-bottom:32px;">
+      <div style="font-size:52px;line-height:1;margin-bottom:12px;">🎂</div>
+      <h1 style="margin:0 0 6px 0;color:#0f2441;font-size:26px;font-weight:700;">¡Feliz Cumpleaños, ${nombre}!</h1>
+      <p style="margin:0;color:#64748b;font-size:15px;">La familia de <strong>IglesiaJCReina</strong> te celebra hoy</p>
+    </div>
+
+    <!-- Message -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+      <tr>
+        <td style="background-color:#fefce8;border:1px solid #fde68a;border-radius:12px;padding:24px 28px;text-align:center;">
+          <p style="margin:0 0 14px 0;color:#374151;font-size:16px;line-height:1.8;">
+            Querido/a <strong>${nombre} ${apellidos}</strong>, en este día especial queremos
+            que sepas cuánto te valoramos y lo importante que eres para nuestra comunidad.
+          </p>
+          <p style="margin:0;color:#374151;font-size:15px;line-height:1.8;">
+            Que Dios te llene de bendiciones, salud y alegría hoy y siempre.
+            ¡Que este nuevo año de vida esté lleno de su gracia y propósito!
+          </p>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Scripture -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+      <tr>
+        <td style="background-color:#eff6ff;border-left:4px solid #1d4ed8;padding:16px 20px;border-radius:0 8px 8px 0;">
+          <p style="margin:0 0 6px 0;color:#1d4ed8;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;">Palabra para ti hoy</p>
+          <p style="margin:0;color:#1e3a8a;font-size:14px;line-height:1.7;font-style:italic;">
+            "Porque yo sé los planes que tengo para vosotros —declara el Señor— planes de bienestar y no de calamidad, para daros un futuro y una esperanza."
+          </p>
+          <p style="margin:6px 0 0 0;color:#3b82f6;font-size:12px;font-weight:600;">— Jeremías 29:11</p>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Closing -->
+    <p style="margin:0;color:#64748b;font-size:14px;text-align:center;line-height:1.7;">
+      Con todo el amor,<br/>
+      <strong style="color:#0f2441;">La familia de IglesiaJCReina</strong>
+    </p>
+  `)
+
+  return getResend().emails.send({
+    from: FROM,
+    to,
+    subject: `🎂 ¡Feliz Cumpleaños, ${nombre}! — IglesiaJCReina`,
+    html,
+  })
+}
