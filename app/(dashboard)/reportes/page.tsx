@@ -186,73 +186,77 @@ function TabAsistencia() {
         <Button variant="outline" size="sm" onClick={loadData}>Actualizar</Button>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <KpiCard label="Promedio asistencia" value={`${promedio}%`} icon={TrendingUp} color="blue" />
-        <KpiCard label="Total eventos" value={eventos.length} icon={CalendarDays} color="green" />
-        <KpiCard label="Total asistentes" value={totalAsistentes} icon={Users} color="orange" />
-      </div>
+      {loading ? (
+        <div className="text-center py-16 text-gray-400">Cargando datos...</div>
+      ) : (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <KpiCard label="Promedio asistencia" value={`${promedio}%`} icon={TrendingUp} color="blue" />
+            <KpiCard label="Total eventos" value={eventos.length} icon={CalendarDays} color="green" />
+            <KpiCard label="Total asistentes" value={totalAsistentes} icon={Users} color="orange" />
+          </div>
 
-      {/* Gráfico */}
-      {chartData.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>Asistencia semanal</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="semana" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Line type="monotone" dataKey="asistentes" stroke="#1d4ed8" strokeWidth={2} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
+          {/* Gráfico */}
+          {chartData.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Asistencia semanal</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="semana" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="asistentes" stroke="#1d4ed8" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Tabla */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Evento</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead className="text-right">Asistentes</TableHead>
-                <TableHead className="text-right">Ausentes</TableHead>
-                <TableHead className="text-right">% Asistencia</TableHead>
-                <TableHead className="text-right">Visitantes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-gray-400">Cargando...</TableCell></TableRow>
-              ) : eventos.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-gray-400">Sin datos en el período seleccionado.</TableCell></TableRow>
-              ) : eventos.map(ev => {
-                const pct = ev.total + ev.ausentes > 0
-                  ? Math.round(ev.total / (ev.total + ev.ausentes) * 100)
-                  : 0
-                return (
-                  <TableRow key={ev.id}>
-                    <TableCell className="font-medium">{ev.nombre}</TableCell>
-                    <TableCell className="text-gray-500 text-xs">{formatDate(ev.fecha)}</TableCell>
-                    <TableCell className="text-right font-semibold text-green-700">{ev.total}</TableCell>
-                    <TableCell className="text-right text-red-500">{ev.ausentes}</TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant={pct >= 70 ? 'success' : pct >= 40 ? 'warning' : 'danger'}>
-                        {pct}%
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right text-purple-600">{ev.visitantes}</TableCell>
+          {/* Tabla */}
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Evento</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead className="text-right">Asistentes</TableHead>
+                    <TableHead className="text-right">Ausentes</TableHead>
+                    <TableHead className="text-right">% Asistencia</TableHead>
+                    <TableHead className="text-right">Visitantes</TableHead>
                   </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {eventos.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-gray-400">Sin datos en el período seleccionado.</TableCell></TableRow>
+                  ) : eventos.map(ev => {
+                    const pct = ev.total + ev.ausentes > 0
+                      ? Math.round(ev.total / (ev.total + ev.ausentes) * 100)
+                      : 0
+                    return (
+                      <TableRow key={ev.id}>
+                        <TableCell className="font-medium">{ev.nombre}</TableCell>
+                        <TableCell className="text-gray-500 text-xs">{formatDate(ev.fecha)}</TableCell>
+                        <TableCell className="text-right font-semibold text-green-700">{ev.total}</TableCell>
+                        <TableCell className="text-right text-red-500">{ev.ausentes}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={pct >= 70 ? 'success' : pct >= 40 ? 'warning' : 'danger'}>
+                            {pct}%
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right text-purple-600">{ev.visitantes}</TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   )
 }

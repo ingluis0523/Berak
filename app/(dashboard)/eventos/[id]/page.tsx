@@ -281,6 +281,7 @@ export default async function EventoDetallePage({ params, searchParams }: PagePr
       {/* Attendance sections */}
       {(asist.length > 0 || implicitAbsentes.length > 0) && (
         <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* ── Asistieron ── */}
           {asistio.length > 0 && (
             <Card>
@@ -291,7 +292,7 @@ export default async function EventoDetallePage({ params, searchParams }: PagePr
                     Asistieron <span className="font-normal text-green-600">({asistio.length})</span>
                   </h2>
                 </div>
-                <ul className="divide-y divide-gray-100">
+                <ul className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
                   {asistio.map((a) => {
                     const p = a.persona
                     const nombre = p ? `${p.nombres} ${p.apellidos}` : (a.nombre_visitante ?? 'Persona')
@@ -325,7 +326,7 @@ export default async function EventoDetallePage({ params, searchParams }: PagePr
                     No asistieron <span className="font-normal text-red-500">({totalAusentes})</span>
                   </h2>
                 </div>
-                <ul className="divide-y divide-gray-100">
+                <ul className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
                   {noAsistio.map((a) => {
                     const p = a.persona
                     const nombre = p ? `${p.nombres} ${p.apellidos}` : (a.nombre_visitante ?? 'Persona')
@@ -362,6 +363,7 @@ export default async function EventoDetallePage({ params, searchParams }: PagePr
               </CardContent>
             </Card>
           )}
+          </div>
 
           {/* ── Visitantes / Primera vez ── */}
           {visitantes.length > 0 && (

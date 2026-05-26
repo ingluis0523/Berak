@@ -39,6 +39,9 @@ import {
   ToggleLeft,
   ToggleRight,
   AlertCircle,
+  KeyRound,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
@@ -322,6 +325,65 @@ function NuevoUsuarioModal({
   )
 }
 
+// ─── Modal: Reset Password ────────────────────────────────────────────────────
+
+function ResetPasswordModal({
+  open,
+  onClose,
+  link,
+  email,
+}: {
+  open: boolean
+  onClose: () => void
+  link: string
+  email: string
+}) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // fallback: select the input text
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent size="md">
+        <DialogHeader>
+          <DialogTitle>Enlace de restablecimiento</DialogTitle>
+          <DialogDescription>
+            Copia este enlace y envíalo a <strong>{email}</strong>. Expira en 24 horas.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="p-6 space-y-4">
+          <div className="flex gap-2">
+            <input
+              readOnly
+              value={link}
+              className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-600 bg-gray-50 font-mono truncate"
+              onClick={e => (e.target as HTMLInputElement).select()}
+            />
+            <Button variant="outline" size="sm" onClick={handleCopy} className="shrink-0">
+              {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+              {copied ? 'Copiado' : 'Copiar'}
+            </Button>
+          </div>
+          <p className="text-xs text-gray-400">
+            Al abrir este enlace, el usuario podrá crear una nueva contraseña. El enlace es de un solo uso.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cerrar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function UsuariosPage() {
@@ -337,6 +399,10 @@ export default function UsuariosPage() {
     usuario: null,
   })
   const [toggling, setToggling] = useState<string | null>(null)
+  const [resetting, setResetting] = useState<string | null>(null)
+  const [resetModal, setResetModal] = useState<{ open: boolean; link: string; email: string }>({
+    open: false, link: '', email: '',
+  })
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -372,12 +438,24 @@ export default function UsuariosPage() {
     setToggling(null)
   }
 
+  const handleResetPassword = async (u: UsuarioRow) => {
+    setResetting(u.id)
+    const res = await fetch(`/api/usuarios/${u.id}/reset`, { method: 'POST' })
+    const data = await res.json()
+    setResetting(null)
+    if (!res.ok || !data.link) {
+      alert(data.error ?? 'Error generando el enlace')
+      return
+    }
+    setResetModal({ open: true, link: data.link, email: data.email })
+  }
+
   const filtered = usuarios.filter(u => {
     if (!search) return true
     const q = search.toLowerCase()
     const nombre = u.persona ? `${u.persona.nombres} ${u.persona.apellidos}`.toLowerCase() : ''
-    const email = (u.auth_email ?? '').toLowerCase()
-    return nombre.includes(q) || email.includes(q)
+    const correo = (u.persona?.correo ?? '').toLowerCase()
+    return nombre.includes(q) || correo.includes(q)
   })
 
   return (
@@ -410,23 +488,24 @@ export default function UsuariosPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Email / Persona</TableHead>
+                <TableHead>Persona</TableHead>
+                <TableHead className="hidden sm:table-cell">Correo</TableHead>
                 <TableHead>Rol</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="hidden md:table-cell">Último acceso</TableHead>
-                <TableHead className="w-[100px] text-right">Acciones</TableHead>
+                <TableHead className="w-[120px] text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-gray-400">
+                  <TableCell colSpan={6} className="text-center py-10 text-gray-400">
                     Cargando...
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-gray-400">
+                  <TableCell colSpan={6} className="text-center py-10 text-gray-400">
                     No se encontraron usuarios.
                   </TableCell>
                 </TableRow>
@@ -434,20 +513,16 @@ export default function UsuariosPage() {
                 filtered.map(u => (
                   <TableRow key={u.id}>
                     <TableCell>
-                      <div>
-                        {u.persona ? (
-                          <>
-                            <p className="font-medium text-gray-900 text-sm">
-                              {u.persona.nombres} {u.persona.apellidos}
-                            </p>
-                            {u.persona.correo && (
-                              <p className="text-xs text-gray-400">{u.persona.correo}</p>
-                            )}
-                          </>
-                        ) : (
-                          <p className="text-sm text-gray-400 italic">Sin persona asociada</p>
-                        )}
-                      </div>
+                      {u.persona ? (
+                        <p className="font-medium text-gray-900 text-sm">
+                          {u.persona.nombres} {u.persona.apellidos}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-400 italic">Sin persona asociada</p>
+                      )}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell text-xs text-gray-500">
+                      {u.persona?.correo ?? <span className="text-gray-300">—</span>}
                     </TableCell>
                     <TableCell>
                       {u.rol ? (
@@ -487,6 +562,15 @@ export default function UsuariosPage() {
                         >
                           <Pencil size={14} />
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Resetear contraseña"
+                          onClick={() => handleResetPassword(u)}
+                          loading={resetting === u.id}
+                        >
+                          <KeyRound size={14} />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -513,6 +597,14 @@ export default function UsuariosPage() {
         onSaved={loadData}
         usuario={editModal.usuario}
         roles={roles}
+      />
+
+      {/* Modal reset password */}
+      <ResetPasswordModal
+        open={resetModal.open}
+        onClose={() => setResetModal({ open: false, link: '', email: '' })}
+        link={resetModal.link}
+        email={resetModal.email}
       />
     </div>
   )

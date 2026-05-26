@@ -49,7 +49,7 @@ export default async function RedReportePage({ params }: PageProps) {
         .maybeSingle(),
       supabase
         .from('grupos')
-        .select('id, nombre, estado, capacidad_maxima, lider:personas!lider_id(id, nombres, apellidos)')
+        .select('id, nombre, estado, lider:personas!lider_id(id, nombres, apellidos)')
         .eq('red_id', id)
         .is('deleted_at', null)
         .order('nombre'),

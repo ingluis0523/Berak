@@ -43,7 +43,7 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
     const { data: grupos } = await supabase
       .from('grupos')
       .select(`
-        id, nombre, estado, capacidad_maxima,
+        id, nombre, estado,
         lider:personas!lider_id(id, nombres, apellidos),
         red:redes(id, nombre)
       `)
@@ -75,7 +75,6 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
               <TableHead className="hidden md:table-cell">Red</TableHead>
               <TableHead className="hidden sm:table-cell">Líder</TableHead>
               <TableHead className="text-center">Miembros</TableHead>
-              <TableHead className="text-center hidden sm:table-cell">Capacidad</TableHead>
               <TableHead className="w-[60px]" />
             </TableRow>
           </TableHeader>
@@ -104,9 +103,6 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
                   </TableCell>
                   <TableCell className="text-center font-semibold text-blue-700">
                     {memberCountMap[g.id] ?? 0}
-                  </TableCell>
-                  <TableCell className="text-center text-gray-500 hidden sm:table-cell text-sm">
-                    {g.capacidad_maxima ?? '—'}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="sm" asChild>
