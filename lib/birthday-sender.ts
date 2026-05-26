@@ -88,7 +88,9 @@ export async function runBirthdaySends(date?: string): Promise<BirthdaySendResul
       })
 
       if ('error' in result && result.error) {
-        sendError = String(result.error)
+        const resendErr = result.error as unknown
+        sendError = JSON.stringify(resendErr)
+        console.error('[birthday-sender] Resend error:', sendError)
         failed++
         errors.push(`${persona.nombres} ${persona.apellidos}: ${sendError}`)
       } else {
