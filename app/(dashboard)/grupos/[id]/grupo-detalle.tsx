@@ -48,6 +48,7 @@ interface Props {
   eventosIniciales: Evento[]
   currentPersonaId: string | null
   estados: EstadoPersona[]
+  nuevosAttendance: Record<string, number>
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -99,13 +100,20 @@ function localToday() {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciales, currentPersonaId, estados }: Props) {
+export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciales, currentPersonaId, estados, nuevosAttendance }: Props) {
   const supabase = createClient()
   const router = useRouter()
 
   const todayStr = localToday()
 
   const [miembros, setMiembros] = useState<GrupoMiembro[]>(miembrosIniciales)
+
+  const nuevosMiembros = useMemo(() => {
+    return miembros.filter((m) => {
+      const p = m.persona as (Persona & { estado_persona?: EstadoPersona }) | undefined
+      return /nuevo/i.test(p?.estado_persona?.nombre ?? '')
+    })
+  }, [miembros])
 
   // All months collapsed except the current month (which is expanded by default)
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(() => {
@@ -413,6 +421,11 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
           <TabsTrigger value="miembros">Miembros ({miembros.length})</TabsTrigger>
           <TabsTrigger value="eventos">Eventos ({eventosIniciales.length})</TabsTrigger>
           <TabsTrigger value="asistencias">Asistencias</TabsTrigger>
+          {nuevosMiembros.length > 0 && (
+            <TabsTrigger value="nuevos">
+              Nuevos ({nuevosMiembros.length})
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ── Tab Miembros ─────────────────────────────────────────────────── */}
@@ -549,6 +562,64 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
             )}
           </div>
         </TabsContent>
+
+        {/* ── Tab Nuevos ───────────────────────────────────────────────────── */}
+        {nuevosMiembros.length > 0 && (
+          <TabsContent value="nuevos">
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-gray-800">Miembros nuevos</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">Personas con estado "Nuevo" en este grupo</p>
+                </div>
+                <span className="text-2xl font-bold text-green-700">{nuevosMiembros.length}</span>
+              </div>
+              <ul className="divide-y divide-gray-100">
+                {nuevosMiembros.map((m) => {
+                  const p = m.persona as (Persona & { estado_persona?: EstadoPersona }) | undefined
+                  const asistidos = nuevosAttendance[m.persona_id] ?? 0
+                  return (
+                    <li key={m.id} className="flex items-center gap-3 px-5 py-3">
+                      <Avatar className="h-9 w-9 shrink-0">
+                        <AvatarFallback>
+                          {p ? initials(p.nombres, p.apellidos) : '?'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 text-sm truncate">
+                          {p ? `${p.nombres} ${p.apellidos}` : 'Persona desconocida'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Ingresó: {formatDate(m.fecha_ingreso)}
+                          {p?.estado_persona?.nombre && (
+                            <span
+                              className="ml-2 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                              style={{
+                                backgroundColor: (p.estado_persona.color ?? '#888') + '22',
+                                color: p.estado_persona.color ?? '#888',
+                              }}
+                            >
+                              {p.estado_persona.nombre}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-semibold text-blue-700">{asistidos}</p>
+                        <p className="text-[10px] text-gray-400">eventos</p>
+                      </div>
+                      {p?.id && (
+                        <Link href={`/personas/${p.id}`} className="text-xs text-blue-500 hover:underline shrink-0">
+                          Ver →
+                        </Link>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          </TabsContent>
+        )}
 
         {/* ── Tab Asistencias ──────────────────────────────────────────────── */}
         <TabsContent value="asistencias">

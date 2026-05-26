@@ -37,7 +37,7 @@ export default async function GrupoPage({ params }: Props) {
   const [{ data: miembros }, { data: estados }] = await Promise.all([
     supabase
       .from('grupo_miembros')
-      .select('*, persona:personas(id,nombres,apellidos,tipo_persona,foto_url)')
+      .select('*, persona:personas(id,nombres,apellidos,tipo_persona,foto_url,estado_persona_id,estado_persona:estado_persona_id(id,nombre,color))')
       .eq('grupo_id', id)
       .eq('activo', true)
       .order('fecha_ingreso', { ascending: false }),
@@ -46,6 +46,15 @@ export default async function GrupoPage({ params }: Props) {
       .select('id, nombre, color')
       .order('nombre'),
   ])
+
+  // Identify "nuevo" estado
+  const estadoNuevo = (estados ?? []).find((e) => /nuevo/i.test(e.nombre))
+  const nuevosMiembros = estadoNuevo
+    ? (miembros ?? []).filter((m) => {
+        const p = m.persona as (typeof m.persona & { estado_persona_id?: string }) | undefined
+        return p?.estado_persona_id === estadoNuevo.id
+      })
+    : []
 
   // Fetch group events AND global events (grupo_id IS NULL) — no limit, groups won't have thousands
   const { data: eventos } = await supabase
@@ -83,6 +92,22 @@ export default async function GrupoPage({ params }: Props) {
     asistencias_count: asistenciasCountMap[e.id] ?? 0,
   }))
 
+  // Per-persona attendance count for "nuevo" members
+  const nuevosPersonaIds = nuevosMiembros.map((m) => m.persona_id).filter(Boolean)
+  let nuevosAttendance: Record<string, number> = {}
+  if (nuevosPersonaIds.length > 0 && eventoIds.length > 0) {
+    const { data: nuevosAsist } = await supabase
+      .from('asistencias')
+      .select('persona_id, evento_id')
+      .in('persona_id', nuevosPersonaIds)
+      .in('evento_id', eventoIds)
+      .eq('estado', 'asistio')
+      .eq('es_visitante', false)
+    nuevosAsist?.forEach((a) => {
+      nuevosAttendance[a.persona_id] = (nuevosAttendance[a.persona_id] ?? 0) + 1
+    })
+  }
+
   return (
     <GrupoDetalle
       grupo={grupo}
@@ -90,6 +115,7 @@ export default async function GrupoPage({ params }: Props) {
       eventosIniciales={eventosWithCount as import('@/types').Evento[]}
       currentPersonaId={currentUser?.persona_id ?? null}
       estados={estados ?? []}
+      nuevosAttendance={nuevosAttendance}
     />
   )
 }
