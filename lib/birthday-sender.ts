@@ -57,15 +57,18 @@ export async function runBirthdaySends(date?: string): Promise<BirthdaySendResul
     return { sent: 0, failed: 0, skipped: 0, total: 0, date: dateStr, errors: [] }
   }
 
-  // Check which ones already received an email this year
+  // Check which ones already received a SUCCESSFUL email this year
   const personaIds = birthdayPersonas.map((p) => p.id)
   const { data: existingLogs } = await supabase
     .from('birthday_logs')
-    .select('persona_id')
+    .select('persona_id, error')
     .in('persona_id', personaIds)
     .eq('anio', year)
 
-  const alreadySentIds = new Set((existingLogs ?? []).map((l) => l.persona_id))
+  // Only skip if previously sent without error — retry failed attempts
+  const alreadySentIds = new Set(
+    (existingLogs ?? []).filter((l) => !l.error).map((l) => l.persona_id)
+  )
   const toSend = birthdayPersonas.filter((p) => !alreadySentIds.has(p.id))
 
   let sent = 0
