@@ -29,7 +29,7 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const publicRoutes = ['/login', '/forgot-password', '/reset-password']
+  const publicRoutes = ['/login', '/forgot-password', '/reset-password', '/api/cron/']
   const isPublicRoute = publicRoutes.some(r => pathname.startsWith(r))
 
   if (!user && !isPublicRoute) {
