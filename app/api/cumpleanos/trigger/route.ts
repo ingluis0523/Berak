@@ -11,14 +11,19 @@ export async function POST() {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  // Verify admin
-  const { data: appUser } = await supabase
-    .from('app_usuarios')
-    .select('is_admin')
-    .eq('auth_user_id', user.id)
+  // Verify admin via rol name (same logic as getCurrentUser)
+  const ADMIN_ROLES = ['super admin', 'pastor', 'secretaria', 'administrador', 'admin']
+  const { data: usuario } = await supabase
+    .from('usuarios')
+    .select('rol:roles(nombre)')
+    .eq('id', user.id)
     .maybeSingle()
 
-  if (!appUser?.is_admin) {
+  const rolRaw = usuario?.rol
+  const rol = (Array.isArray(rolRaw) ? rolRaw[0] : rolRaw) as { nombre: string } | null
+  const isAdmin = !!(rol && ADMIN_ROLES.includes(rol.nombre.toLowerCase()))
+
+  if (!isAdmin) {
     return NextResponse.json({ error: 'Solo administradores pueden ejecutar esto' }, { status: 403 })
   }
 

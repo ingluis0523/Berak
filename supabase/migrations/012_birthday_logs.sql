@@ -16,8 +16,10 @@ CREATE POLICY "Admins can view birthday logs"
   ON birthday_logs FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM app_usuarios u
-      WHERE u.auth_user_id = auth.uid() AND u.is_admin = true
+      SELECT 1 FROM usuarios u
+      JOIN roles r ON r.id = u.rol_id
+      WHERE u.id = auth.uid()
+        AND lower(r.nombre) IN ('super admin', 'pastor', 'secretaria', 'administrador', 'admin')
     )
   );
 
