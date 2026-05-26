@@ -10,11 +10,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('[cron/cumpleanos] SUPABASE_SERVICE_ROLE_KEY is not set')
+    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY not configured' }, { status: 500 })
+  }
+
   try {
     const result = await runBirthdaySends()
+    console.log('[cron/cumpleanos] result:', result)
     return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
+    console.error('[cron/cumpleanos] error:', message)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
