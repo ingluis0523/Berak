@@ -35,22 +35,30 @@ export async function runBirthdaySends(date?: string): Promise<BirthdaySendResul
   const mmdd = `${month}-${day}`
   const dateStr = `${year}-${mmdd}`
 
-  // Find personas with birthday today who have an email
+  // fecha_nacimiento is type 'date', so we can't use ilike.
+  // Use filter with cast to text: fecha_nacimiento::text ilike '%-MM-DD'
   const { data: personas, error: personasErr } = await supabase
     .from('personas')
-    .select('id, nombres, apellidos, correo')
-    .ilike('fecha_nacimiento', `%-${mmdd}`)
+    .select('id, nombres, apellidos, correo, fecha_nacimiento')
     .not('correo', 'is', null)
     .is('deleted_at', null)
+    .not('fecha_nacimiento', 'is', null)
 
   if (personasErr) throw new Error(personasErr.message)
 
-  if (!personas || personas.length === 0) {
+  // Filter by MM-DD in application code (avoids ilike on date column)
+  const birthdayPersonas = (personas ?? []).filter((p) => {
+    if (!p.fecha_nacimiento) return false
+    const parts = String(p.fecha_nacimiento).split('-')
+    return parts.length >= 3 && `${parts[1]}-${parts[2]}` === mmdd
+  })
+
+  if (birthdayPersonas.length === 0) {
     return { sent: 0, failed: 0, skipped: 0, total: 0, date: dateStr, errors: [] }
   }
 
   // Check which ones already received an email this year
-  const personaIds = personas.map((p) => p.id)
+  const personaIds = birthdayPersonas.map((p) => p.id)
   const { data: existingLogs } = await supabase
     .from('birthday_logs')
     .select('persona_id')
@@ -58,7 +66,7 @@ export async function runBirthdaySends(date?: string): Promise<BirthdaySendResul
     .eq('anio', year)
 
   const alreadySentIds = new Set((existingLogs ?? []).map((l) => l.persona_id))
-  const toSend = personas.filter((p) => !alreadySentIds.has(p.id))
+  const toSend = birthdayPersonas.filter((p) => !alreadySentIds.has(p.id))
 
   let sent = 0
   let failed = 0
@@ -106,7 +114,7 @@ export async function runBirthdaySends(date?: string): Promise<BirthdaySendResul
     sent,
     failed,
     skipped: alreadySentIds.size,
-    total: personas.length,
+    total: birthdayPersonas.length,
     date: dateStr,
     errors,
   }
