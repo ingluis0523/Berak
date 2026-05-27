@@ -62,12 +62,15 @@ export default async function RedReportePage({ params }: PageProps) {
   const grupoIds = (grupos ?? []).map((g) => g.id)
 
   // ── Phase 2 ───────────────────────────────────────────────────────────────
-  const [{ data: miembrosRaw }, { data: eventosRaw }] = await Promise.all([
+  type EventoRow = { id: string; nombre: string; fecha: string; estado: string; grupo_id: string | null }
+
+  const [{ data: miembrosRaw }, { data: grupoEventosRaw }, { data: globalEventosRaw }] = await Promise.all([
     supabase
       .from('grupo_miembros')
       .select('persona_id, grupo_id, fecha_ingreso, persona:personas(id, nombres, apellidos, tipo_persona, estado_persona_id, fecha_registro)')
       .in('grupo_id', grupoIds.length > 0 ? grupoIds : ['00000000-0000-0000-0000-000000000000'])
       .eq('activo', true),
+    // Eventos asignados a grupos específicos de esta red
     grupoIds.length > 0
       ? supabase
           .from('eventos')
@@ -77,8 +80,22 @@ export default async function RedReportePage({ params }: PageProps) {
           .lte('fecha', todayStr)
           .neq('estado', 'cancelado')
           .order('fecha', { ascending: true })
-      : Promise.resolve({ data: [] as { id: string; nombre: string; fecha: string; estado: string; grupo_id: string }[] }),
+      : Promise.resolve({ data: [] as EventoRow[] }),
+    // Eventos globales (grupo_id IS NULL) — aplican a todos los grupos
+    supabase
+      .from('eventos')
+      .select('id, nombre, fecha, estado, grupo_id')
+      .is('grupo_id', null)
+      .gte('fecha', sixMonthsAgo)
+      .lte('fecha', todayStr)
+      .neq('estado', 'cancelado')
+      .order('fecha', { ascending: true }),
   ])
+
+  const eventosRaw: EventoRow[] = [
+    ...((grupoEventosRaw ?? []) as EventoRow[]),
+    ...((globalEventosRaw ?? []) as EventoRow[]),
+  ]
 
   // ── Deduplicate personas (person may be in multiple groups) ───────────────
   type PersonaRow = {
@@ -130,23 +147,29 @@ export default async function RedReportePage({ params }: PageProps) {
       .in('evento_id', eventoIds)
       .in('persona_id', personaIds)
       .eq('estado', 'asistio')
-      .eq('es_visitante', false)
+      .neq('es_visitante', true)
     asistencias = data ?? []
   }
 
   // ── Attendance by grupo ───────────────────────────────────────────────────
+  // Group-specific events count per grupo
   const eventosCountByGrupo: Record<string, number> = {}
-  const asistenciasByGrupo: Record<string, number> = {}
-
-  for (const ev of eventosRaw ?? []) {
-    eventosCountByGrupo[ev.grupo_id] = (eventosCountByGrupo[ev.grupo_id] ?? 0) + 1
+  for (const ev of grupoEventosRaw ?? []) {
+    if (ev.grupo_id) eventosCountByGrupo[ev.grupo_id] = (eventosCountByGrupo[ev.grupo_id] ?? 0) + 1
+  }
+  // Global events count adds to every group (members are expected to attend)
+  const globalEvCount = (globalEventosRaw ?? []).length
+  for (const g of grupos ?? []) {
+    eventosCountByGrupo[g.id] = (eventosCountByGrupo[g.id] ?? 0) + globalEvCount
   }
 
-  const eventoGrupoMap: Record<string, string> = {}
-  for (const ev of eventosRaw ?? []) eventoGrupoMap[ev.id] = ev.grupo_id
+  // Map persona → grupo for attribution (handles global events correctly)
+  const personaGrupoMap: Record<string, string> = {}
+  for (const p of personas) personaGrupoMap[p.id] = p.grupoId
 
+  const asistenciasByGrupo: Record<string, number> = {}
   for (const a of asistencias) {
-    const gid = eventoGrupoMap[a.evento_id]
+    const gid = personaGrupoMap[a.persona_id]
     if (gid) asistenciasByGrupo[gid] = (asistenciasByGrupo[gid] ?? 0) + 1
   }
 
