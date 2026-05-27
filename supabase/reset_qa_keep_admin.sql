@@ -45,6 +45,9 @@ DELETE FROM grupo_miembros;
 DELETE FROM ministerios;
 DELETE FROM grupos;
 DELETE FROM redes;
+DELETE FROM evangelismo_seguimientos;
+DELETE FROM evangelismos;
+DELETE FROM persona_estado_historial;
 DELETE FROM personas;
 
 -- Borrar usuarios secundarios
@@ -109,7 +112,11 @@ INSERT INTO estados_persona (nombre, descripcion, color, orden) VALUES
   ('servidor',  'Sirve en algún ministerio',          'purple', 4),
   ('lider',     'Líder de grupo o ministerio',        'indigo', 5),
   ('asistente', 'Asiste regularmente',                'teal',   6),
-  ('inactivo',  'No ha asistido recientemente',       'gray',   7);
+  ('inactivo',      'No ha asistido recientemente',              'gray',   7),
+  ('evangelizada',  'Persona recién evangelizada',              '#f59e0b', 20),
+  ('en seguimiento','Evangelizada en seguimiento activo',       '#3b82f6', 21),
+  ('consolidada',   'Con asistencia regular, proceso avanzado', '#8b5cf6', 22),
+  ('integrada',     'Integrada a un grupo de la iglesia',       '#10b981', 23);
 
 -- ── Paso 6: Re-insertar catálogo de permisos ──────────────────────────────────
 DELETE FROM permisos;
@@ -142,7 +149,10 @@ INSERT INTO permisos (nombre, modulo, descripcion) VALUES
   ('gestionar_roles',        'sistema',     'Gestionar roles y permisos'),
   ('acceso_todas_redes',     'sistema',     'Ver datos de todas las redes (sin restricción por red)'),
   ('ver_configuracion',      'sistema',     'Ver configuración del sistema'),
-  ('gestionar_configuracion','sistema',     'Modificar configuración del sistema');
+  ('gestionar_configuracion','sistema',     'Modificar configuración del sistema'),
+  ('ver_evangelismo',        'evangelismo', 'Ver lista y detalle de evangelismos'),
+  ('crear_evangelismo',      'evangelismo', 'Registrar nuevos evangelismos'),
+  ('editar_evangelismo',     'evangelismo', 'Editar evangelismos y seguimientos');
 
 -- ── Paso 7: Re-asignar TODOS los permisos al rol del usuario principal ─────────
 INSERT INTO rol_permisos (rol_id, permiso_id)
@@ -165,5 +175,6 @@ DROP TABLE IF EXISTS _main_user;
 -- Se borraron:
 --   ✗ Todos los demás usuarios (auth + public)
 --   ✗ Personas, grupos, redes, ministerios, eventos, asistencias
+--   ✗ Evangelismos, seguimientos, historial de estados de persona
 --   ✗ Reglas de automatización (re-crear desde /configuracion)
 -- ═══════════════════════════════════════════════════════════════════════════════
