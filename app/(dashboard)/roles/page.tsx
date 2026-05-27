@@ -44,6 +44,9 @@ const PERMISOS_SEED: { nombre: string; modulo: string; descripcion: string }[] =
   { nombre: 'ver_asistencias',  modulo: 'asistencias', descripcion: 'Ver registros de asistencia' },
   { nombre: 'registrar_asistencias', modulo: 'asistencias', descripcion: 'Registrar asistencia a eventos' },
   { nombre: 'editar_asistencias',modulo: 'asistencias', descripcion: 'Editar registros de asistencia' },
+  { nombre: 'ver_evangelismo',       modulo: 'evangelismo', descripcion: 'Ver lista y detalle de evangelismos' },
+  { nombre: 'crear_evangelismo',     modulo: 'evangelismo', descripcion: 'Registrar nuevos evangelismos' },
+  { nombre: 'editar_evangelismo',    modulo: 'evangelismo', descripcion: 'Editar evangelismos y seguimientos' },
   { nombre: 'ver_reportes',     modulo: 'reportes',    descripcion: 'Ver reportes del sistema' },
   { nombre: 'exportar_reportes',modulo: 'reportes',    descripcion: 'Exportar reportes a CSV/Excel' },
   { nombre: 'gestionar_usuarios',modulo: 'sistema',    descripcion: 'Crear y administrar usuarios' },
@@ -60,11 +63,12 @@ const MODULO_LABELS: Record<string, string> = {
   ministerios: 'Ministerios',
   eventos:     'Eventos',
   asistencias: 'Asistencias',
+  evangelismo: 'Evangelismo',
   reportes:    'Reportes',
   sistema:     'Sistema',
 }
 
-const MODULO_ORDER = ['personas', 'grupos', 'redes', 'ministerios', 'eventos', 'asistencias', 'reportes', 'sistema']
+const MODULO_ORDER = ['personas', 'grupos', 'redes', 'ministerios', 'eventos', 'asistencias', 'evangelismo', 'reportes', 'sistema']
 
 // ─── Modal: Nuevo / Editar Rol ────────────────────────────────────────────────
 
