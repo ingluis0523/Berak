@@ -75,7 +75,7 @@ export default async function RedReportePage({ params }: PageProps) {
           .in('grupo_id', grupoIds)
           .gte('fecha', sixMonthsAgo)
           .lte('fecha', todayStr)
-          .eq('estado', 'realizado')
+          .neq('estado', 'cancelado')
           .order('fecha', { ascending: true })
       : Promise.resolve({ data: [] as { id: string; nombre: string; fecha: string; estado: string; grupo_id: string }[] }),
   ])

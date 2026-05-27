@@ -185,6 +185,14 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
 
     if (error) { setAddError(error.message); setAddLoading(false); return }
 
+    // Asignar líder del grupo a cada persona agregada (si el grupo tiene líder)
+    if (grupo.lider_id) {
+      await supabase
+        .from('personas')
+        .update({ lider_id: grupo.lider_id, updated_at: new Date().toISOString() })
+        .in('id', [...selectedPersonaIds])
+    }
+
     const { data: updated } = await supabase
       .from('grupo_miembros')
       .select('*, persona:personas(id,nombres,apellidos,tipo_persona,foto_url)')

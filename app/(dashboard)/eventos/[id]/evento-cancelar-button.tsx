@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { XCircle } from 'lucide-react'
 
-export function EventoCancelarButton({ eventoId }: { eventoId: string }) {
+export function EventoCancelarButton({ eventoId, canCancel = true }: { eventoId: string; canCancel?: boolean }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -30,6 +30,8 @@ export function EventoCancelarButton({ eventoId }: { eventoId: string }) {
     setOpen(false)
     router.refresh()
   }
+
+  if (!canCancel) return null
 
   return (
     <>

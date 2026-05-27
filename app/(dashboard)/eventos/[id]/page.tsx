@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/current-user'
 import { formatDate, formatDateLong, ESTADO_EVENTO_LABELS, ESTADO_ASISTENCIA_LABELS, getInitials } from '@/lib/utils'
 import type { Evento, Asistencia, Persona } from '@/types'
 import { Card, CardContent } from '@/components/ui/card'
@@ -41,7 +42,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function EventoDetallePage({ params, searchParams }: PageProps) {
   const { id } = await params
   const { grupo_id: grupoFiltro } = await searchParams
-  const supabase = await createClient()
+  const [supabase, currentUser] = await Promise.all([createClient(), getCurrentUser()])
+  const canCancel = currentUser?.hasPermission('cancelar_eventos') ?? false
 
   const { data: evento } = await supabase
     .from('eventos')
@@ -184,7 +186,7 @@ export default async function EventoDetallePage({ params, searchParams }: PagePr
           </Link>
         </Button>
         {ev.estado !== 'cancelado' && (
-          <EventoCancelarButton eventoId={ev.id} />
+          <EventoCancelarButton eventoId={ev.id} canCancel={canCancel} />
         )}
       </div>
 

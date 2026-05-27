@@ -128,7 +128,7 @@ function TabAsistencia() {
       .select('id, nombre, fecha, asistencias(estado, es_visitante)')
       .gte('fecha', from.toISOString().split('T')[0])
       .lte('fecha', to.toISOString().split('T')[0])
-      .eq('estado', 'realizado')
+      .neq('estado', 'cancelado')
       .order('fecha', { ascending: false })
 
     const processed = (eventosData ?? []).map(ev => {
@@ -500,7 +500,7 @@ function TabLideres() {
         .from('eventos')
         .select('id, grupo_id')
         .gte('fecha', hace1m.toISOString().split('T')[0])
-        .eq('estado', 'realizado')
+        .neq('estado', 'cancelado')
 
       // Asistencias registradas por líder (campo registrado_por)
       const { data: asistenciasData } = await supabase

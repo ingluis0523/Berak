@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/current-user'
 import { formatDate, getInitials } from '@/lib/utils'
 import { PageHeader } from '@/components/shared/page-header'
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,7 @@ import { Heart, TrendingUp, Users, UserCheck, BarChart2, Plus } from 'lucide-rea
 import { EvangelismoFilters } from './evangelismo-filters'
 
 export const metadata: Metadata = { title: 'Evangelismo' }
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   searchParams: Promise<{ estado?: string; q?: string }>
@@ -25,9 +27,30 @@ function resolveOne<T>(v: unknown): T | null {
 
 export default async function EvangelismoPage({ searchParams }: PageProps) {
   const { estado, q } = await searchParams
-  const supabase = await createClient()
+  const [supabase, currentUser] = await Promise.all([createClient(), getCurrentUser()])
 
-  const { data: rawRows } = await supabase
+  // Scoping: non-admin users only see evangelismos from their red
+  let personaIdsScope: string[] | null = null
+  if (currentUser && !currentUser.is_admin && !currentUser.hasPermission('acceso_todas_redes') && currentUser.red_id) {
+    const { data: gruposEnRed } = await supabase
+      .from('grupos')
+      .select('id')
+      .eq('red_id', currentUser.red_id)
+      .is('deleted_at', null)
+    const grupoIds = (gruposEnRed ?? []).map((g) => g.id)
+    if (grupoIds.length > 0) {
+      const { data: miembros } = await supabase
+        .from('grupo_miembros')
+        .select('persona_id')
+        .in('grupo_id', grupoIds)
+        .eq('activo', true)
+      personaIdsScope = [...new Set((miembros ?? []).map((m) => m.persona_id as string))]
+    } else {
+      personaIdsScope = []
+    }
+  }
+
+  let query = supabase
     .from('evangelismos')
     .select(`
       id, fecha_evangelismo, lugar, updated_at,
@@ -41,6 +64,13 @@ export default async function EvangelismoPage({ searchParams }: PageProps) {
     `)
     .is('deleted_at', null)
     .order('fecha_evangelismo', { ascending: false })
+
+  if (personaIdsScope !== null) {
+    if (personaIdsScope.length === 0) query = query.in('persona_id', ['00000000-0000-0000-0000-000000000000'])
+    else query = query.in('persona_id', personaIdsScope)
+  }
+
+  const { data: rawRows } = await query
 
   type PersonaSnap = {
     id: string; nombres: string; apellidos: string; foto_url: string | null
