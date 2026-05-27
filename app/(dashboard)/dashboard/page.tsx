@@ -94,12 +94,13 @@ export default async function DashboardPage() {
       .gte('fecha', now.toISOString().split('T')[0])
       .order('fecha', { ascending: true })
       .limit(5),
-    // Last 4 weeks events for chart
+    // Last 4 weeks events with real attendance counts
     supabase
       .from('eventos')
-      .select('id, nombre, fecha, asistencias_count')
+      .select('id, nombre, fecha, asistencias(estado, es_visitante)')
       .gte('fecha', new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
       .lte('fecha', now.toISOString().split('T')[0])
+      .neq('estado', 'cancelado')
       .order('fecha', { ascending: true }),
     supabase.from('estados_persona').select('id').ilike('nombre', 'nuevo').limit(1).maybeSingle(),
     supabase.from('estados_persona').select('id').ilike('nombre', '%inactiv%').limit(1).maybeSingle(),
@@ -127,18 +128,23 @@ export default async function DashboardPage() {
   const nuevosDelMes = nuevosDelMesResult.count ?? 0
   const inactivos = inactivosResult.count ?? 0
 
+  // ── Compute attendance counts from join ───────────────────────────────────
+  type AsistRow = { estado: string; es_visitante: boolean | null }
+  const eventsWithCount = (weeklyAttendance ?? []).map((e) => ({
+    fecha: e.fecha,
+    count: ((e.asistencias ?? []) as AsistRow[])
+      .filter((a) => a.estado === 'asistio' && a.es_visitante !== true).length,
+  }))
+
   // ── Average attendance % ───────────────────────────────────────────────────
   let promedioAsistencia = 0
-  if (weeklyAttendance && weeklyAttendance.length > 0 && totalPersonas && totalPersonas > 0) {
-    const totalAsistencias = weeklyAttendance.reduce(
-      (sum, e) => sum + (e.asistencias_count ?? 0),
-      0
-    )
-    const avg = totalAsistencias / weeklyAttendance.length
+  if (eventsWithCount.length > 0 && totalPersonas && totalPersonas > 0) {
+    const totalAsistencias = eventsWithCount.reduce((sum, e) => sum + e.count, 0)
+    const avg = totalAsistencias / eventsWithCount.length
     promedioAsistencia = Math.round((avg / totalPersonas) * 100)
   }
 
-  // ── Chart data: group by ISO week (last 4 Sundays) ────────────────────────
+  // ── Chart data: group by week (last 4 Sundays) ────────────────────────────
   const chartData: { semana: string; asistencias: number }[] = []
   for (let i = 3; i >= 0; i--) {
     const weekStart = new Date(now)
@@ -146,11 +152,11 @@ export default async function DashboardPage() {
     const weekEnd = new Date(weekStart)
     weekEnd.setDate(weekStart.getDate() + 6)
     const label = `Sem ${4 - i}`
-    const events = (weeklyAttendance ?? []).filter((e) => {
-      const d = e.fecha
-      return d >= weekStart.toISOString().split('T')[0] && d <= weekEnd.toISOString().split('T')[0]
-    })
-    const total = events.reduce((s, e) => s + (e.asistencias_count ?? 0), 0)
+    const wStart = weekStart.toISOString().split('T')[0]
+    const wEnd = weekEnd.toISOString().split('T')[0]
+    const total = eventsWithCount
+      .filter((e) => e.fecha >= wStart && e.fecha <= wEnd)
+      .reduce((s, e) => s + e.count, 0)
     chartData.push({ semana: label, asistencias: total })
   }
 
