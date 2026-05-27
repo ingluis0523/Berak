@@ -60,15 +60,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: dbError.message }, { status: 500 })
   }
 
-  // Obtener nombre de la persona vinculada para personalizar el email
+  // Obtener datos de la persona vinculada y actualizar correo si está vacío
   let nombrePersona: string | undefined
   if (persona_id) {
     const { data: persona } = await adminClient
       .from('personas')
-      .select('nombres')
+      .select('nombres, correo')
       .eq('id', persona_id)
       .maybeSingle()
     if (persona?.nombres) nombrePersona = persona.nombres
+    if (!persona?.correo) {
+      await adminClient
+        .from('personas')
+        .update({ correo: email, updated_at: new Date().toISOString() })
+        .eq('id', persona_id)
+    }
   }
 
   // Enviar email de bienvenida (no bloqueante — si falla, el usuario ya fue creado)
