@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, getNombreCompleto } from '@/lib/utils'
 import { PageHeader } from '@/components/shared/page-header'
@@ -35,7 +35,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { Download, Users, CalendarDays, TrendingUp, UserMinus } from 'lucide-react'
+import { Download, Users, CalendarDays, TrendingUp, UserMinus, ChevronDown, ChevronRight } from 'lucide-react'
 import { subWeeks, subMonths, startOfWeek, format, parseISO, differenceInDays, isAfter, subDays } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -615,6 +615,181 @@ function TabLideres() {
   )
 }
 
+// ─── Tab: Sin Reporte ─────────────────────────────────────────────────────────
+
+type EventoSinReporte = {
+  id: string
+  nombre: string
+  fecha: string
+  estado: string
+  grupo: { id: string; nombre: string } | null
+}
+
+function getWeekLabel(dateStr: string): string {
+  const day = parseInt(dateStr.slice(8, 10), 10)
+  if (day <= 7)  return 'Semana 1'
+  if (day <= 14) return 'Semana 2'
+  if (day <= 21) return 'Semana 3'
+  return 'Semana 4'
+}
+
+function TabNoReportado() {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(true)
+  const [eventos, setEventos] = useState<EventoSinReporte[]>([])
+  const [openMonths, setOpenMonths] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const hoy = format(new Date(), 'yyyy-MM-dd')
+      const { data } = await supabase
+        .from('eventos')
+        .select('id, nombre, fecha, estado, grupo:grupo_id(id, nombre), asistencias(id)')
+        .lte('fecha', hoy)
+        .neq('estado', 'cancelado')
+        .order('fecha', { ascending: false })
+      if (!active) return
+
+      const rows = (data ?? [])
+        .filter((e) => ((e.asistencias ?? []) as { id: string }[]).length === 0)
+        .map((e) => {
+          const g = e.grupo as unknown
+          return {
+            id: e.id,
+            nombre: e.nombre,
+            fecha: e.fecha,
+            estado: e.estado as string,
+            grupo: (Array.isArray(g) ? g[0] : g) as { id: string; nombre: string } | null,
+          }
+        })
+
+      setEventos(rows)
+      setOpenMonths(new Set([format(new Date(), 'yyyy-MM')]))
+      setLoading(false)
+    })()
+    return () => { active = false }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const grouped = useMemo(() => {
+    const byMonth: Record<string, { label: string; weeks: Record<string, EventoSinReporte[]> }> = {}
+    for (const e of eventos) {
+      const mk = e.fecha.slice(0, 7)
+      if (!byMonth[mk]) {
+        byMonth[mk] = {
+          label: format(parseISO(mk + '-01'), 'MMMM yyyy', { locale: es }),
+          weeks: {},
+        }
+      }
+      const wl = getWeekLabel(e.fecha)
+      if (!byMonth[mk].weeks[wl]) byMonth[mk].weeks[wl] = []
+      byMonth[mk].weeks[wl].push(e)
+    }
+    const cur = format(new Date(), 'yyyy-MM')
+    return Object.keys(byMonth)
+      .sort((a, b) => (a === cur ? -1 : b === cur ? 1 : b.localeCompare(a)))
+      .map((key) => ({
+        key,
+        label: byMonth[key].label,
+        weeks: byMonth[key].weeks,
+        count: Object.values(byMonth[key].weeks).reduce((s, w) => s + w.length, 0),
+      }))
+  }, [eventos])
+
+  function toggleMonth(key: string) {
+    setOpenMonths((p) => {
+      const n = new Set(p)
+      n.has(key) ? n.delete(key) : n.add(key)
+      return n
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="h-14 rounded-xl bg-gray-100 animate-pulse" />
+        ))}
+      </div>
+    )
+  }
+
+  if (eventos.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12 flex flex-col items-center text-center gap-2">
+          <p className="font-medium text-gray-700">Todo al día</p>
+          <p className="text-sm text-gray-400">Todos los eventos pasados tienen asistencia registrada.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-gray-500">
+        {eventos.length} evento{eventos.length !== 1 ? 's' : ''} sin asistencia registrada
+      </p>
+      {grouped.map((month) => {
+        const isOpen = openMonths.has(month.key)
+        return (
+          <Card key={month.key} className="overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleMonth(month.key)}
+              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="font-semibold text-gray-900 capitalize">{month.label}</span>
+                <Badge variant="warning">
+                  {month.count} sin reporte
+                </Badge>
+              </div>
+              {isOpen
+                ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
+                : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
+            </button>
+            {isOpen && (
+              <div className="border-t border-gray-100">
+                {(['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'] as const).map((wl) => {
+                  const evs = month.weeks[wl]
+                  if (!evs?.length) return null
+                  return (
+                    <div key={wl} className="px-5 py-3 border-b border-gray-50 last:border-b-0">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{wl}</p>
+                      <div className="space-y-2.5">
+                        {evs.map((e) => (
+                          <div key={e.id} className="flex items-center gap-3">
+                            <div className="flex flex-col items-center justify-center w-9 h-9 rounded-lg bg-orange-50 text-orange-700 shrink-0">
+                              <span className="text-xs font-bold leading-none">
+                                {parseInt(e.fecha.slice(8, 10), 10)}
+                              </span>
+                              <span className="text-[10px] uppercase">
+                                {format(parseISO(e.fecha), 'MMM', { locale: es })}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{e.nombre}</p>
+                              <p className="text-xs text-gray-400">
+                                {e.grupo ? e.grupo.nombre : 'Evento global'}
+                              </p>
+                            </div>
+                            <Badge variant="warning" className="shrink-0">Sin reporte</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Tab: Exportar ────────────────────────────────────────────────────────────
 
 function TabExportar() {
@@ -783,6 +958,7 @@ export default function ReportesPage() {
           <TabsTrigger value="asistencia">Asistencia</TabsTrigger>
           <TabsTrigger value="personas">Personas</TabsTrigger>
           <TabsTrigger value="lideres">Líderes</TabsTrigger>
+          <TabsTrigger value="no_reportado">Sin reporte</TabsTrigger>
           <TabsTrigger value="exportar">Exportar</TabsTrigger>
         </TabsList>
 
@@ -796,6 +972,10 @@ export default function ReportesPage() {
 
         <TabsContent value="lideres">
           <TabLideres />
+        </TabsContent>
+
+        <TabsContent value="no_reportado">
+          <TabNoReportado />
         </TabsContent>
 
         <TabsContent value="exportar">

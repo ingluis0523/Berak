@@ -16,13 +16,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { Textarea } from '@/components/ui/textarea'
 import type { Ministerio, Persona } from '@/types'
 
@@ -235,15 +229,16 @@ export default function MinisteriosClient({ canCrear, canEditar }: Props) {
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Líder</label>
-              <Select value={form.lider_id} onValueChange={(v) => setForm((f) => ({ ...f, lider_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Selecciona un líder" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin líder asignado</SelectItem>
-                  {lideres.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>{l.nombres} {l.apellidos}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={[
+                  { value: 'none', label: 'Sin líder asignado' },
+                  ...lideres.map((l) => ({ value: l.id, label: `${l.nombres} ${l.apellidos}` })),
+                ]}
+                value={form.lider_id || undefined}
+                onValueChange={(v) => setForm((f) => ({ ...f, lider_id: v }))}
+                placeholder="Selecciona un líder"
+                searchPlaceholder="Buscar persona..."
+              />
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-700">Descripción</label>

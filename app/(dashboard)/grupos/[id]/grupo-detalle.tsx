@@ -427,7 +427,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
       <Tabs defaultValue="miembros">
         <TabsList>
           <TabsTrigger value="miembros">Miembros ({miembros.length})</TabsTrigger>
-          <TabsTrigger value="eventos">Eventos ({eventosIniciales.length})</TabsTrigger>
+          <TabsTrigger value="eventos">Eventos</TabsTrigger>
           <TabsTrigger value="asistencias">Asistencias</TabsTrigger>
           {nuevosMiembros.length > 0 && (
             <TabsTrigger value="nuevos">
