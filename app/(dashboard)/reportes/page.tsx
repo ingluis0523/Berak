@@ -621,11 +621,10 @@ type EventoSinReporte = {
   id: string
   nombre: string
   fecha: string
-  estado: string
   grupo: { id: string; nombre: string } | null
 }
 
-function getWeekLabel(dateStr: string): string {
+function nrWeekLabel(dateStr: string): string {
   const day = parseInt(dateStr.slice(8, 10), 10)
   if (day <= 7)  return 'Semana 1'
   if (day <= 14) return 'Semana 2'
@@ -633,11 +632,24 @@ function getWeekLabel(dateStr: string): string {
   return 'Semana 4'
 }
 
+function nrWeekRange(monthKey: string, weekLabel: string): string {
+  const [y, m] = monthKey.split('-').map(Number)
+  const lastDay = new Date(y, m, 0).getDate()
+  const ranges: Record<string, string> = {
+    'Semana 1': '1 – 7',
+    'Semana 2': '8 – 14',
+    'Semana 3': '15 – 21',
+    'Semana 4': `22 – ${lastDay}`,
+  }
+  return ranges[weekLabel] ?? ''
+}
+
 function TabNoReportado() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [eventos, setEventos] = useState<EventoSinReporte[]>([])
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set())
+  const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let active = true
@@ -659,13 +671,20 @@ function TabNoReportado() {
             id: e.id,
             nombre: e.nombre,
             fecha: e.fecha,
-            estado: e.estado as string,
             grupo: (Array.isArray(g) ? g[0] : g) as { id: string; nombre: string } | null,
           }
         })
 
       setEventos(rows)
-      setOpenMonths(new Set([format(new Date(), 'yyyy-MM')]))
+
+      // Open current month and all its weeks that have events
+      const curMonth = format(new Date(), 'yyyy-MM')
+      setOpenMonths(new Set([curMonth]))
+      setOpenWeeks(new Set(
+        rows
+          .filter((e) => e.fecha.startsWith(curMonth))
+          .map((e) => `${curMonth}-${nrWeekLabel(e.fecha)}`)
+      ))
       setLoading(false)
     })()
     return () => { active = false }
@@ -681,7 +700,7 @@ function TabNoReportado() {
           weeks: {},
         }
       }
-      const wl = getWeekLabel(e.fecha)
+      const wl = nrWeekLabel(e.fecha)
       if (!byMonth[mk].weeks[wl]) byMonth[mk].weeks[wl] = []
       byMonth[mk].weeks[wl].push(e)
     }
@@ -697,11 +716,11 @@ function TabNoReportado() {
   }, [eventos])
 
   function toggleMonth(key: string) {
-    setOpenMonths((p) => {
-      const n = new Set(p)
-      n.has(key) ? n.delete(key) : n.add(key)
-      return n
-    })
+    setOpenMonths((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n })
+  }
+
+  function toggleWeek(key: string) {
+    setOpenWeeks((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n })
   }
 
   if (loading) {
@@ -731,9 +750,10 @@ function TabNoReportado() {
         {eventos.length} evento{eventos.length !== 1 ? 's' : ''} sin asistencia registrada
       </p>
       {grouped.map((month) => {
-        const isOpen = openMonths.has(month.key)
+        const isMonthOpen = openMonths.has(month.key)
         return (
           <Card key={month.key} className="overflow-hidden">
+            {/* ── Mes (acordeón nivel 1) ── */}
             <button
               type="button"
               onClick={() => toggleMonth(month.key)}
@@ -741,43 +761,66 @@ function TabNoReportado() {
             >
               <div className="flex items-center gap-3">
                 <span className="font-semibold text-gray-900 capitalize">{month.label}</span>
-                <Badge variant="warning">
-                  {month.count} sin reporte
-                </Badge>
+                <Badge variant="warning">{month.count} sin reporte</Badge>
               </div>
-              {isOpen
+              {isMonthOpen
                 ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
                 : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
             </button>
-            {isOpen && (
-              <div className="border-t border-gray-100">
+
+            {/* ── Contenido del mes ── */}
+            {isMonthOpen && (
+              <div className="border-t border-gray-100 divide-y divide-gray-100">
                 {(['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'] as const).map((wl) => {
                   const evs = month.weeks[wl]
                   if (!evs?.length) return null
+                  const weekKey = `${month.key}-${wl}`
+                  const isWeekOpen = openWeeks.has(weekKey)
+                  const range = nrWeekRange(month.key, wl)
                   return (
-                    <div key={wl} className="px-5 py-3 border-b border-gray-50 last:border-b-0">
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{wl}</p>
-                      <div className="space-y-2.5">
-                        {evs.map((e) => (
-                          <div key={e.id} className="flex items-center gap-3">
-                            <div className="flex flex-col items-center justify-center w-9 h-9 rounded-lg bg-orange-50 text-orange-700 shrink-0">
-                              <span className="text-xs font-bold leading-none">
-                                {parseInt(e.fecha.slice(8, 10), 10)}
-                              </span>
-                              <span className="text-[10px] uppercase">
-                                {format(parseISO(e.fecha), 'MMM', { locale: es })}
-                              </span>
+                    <div key={wl}>
+                      {/* ── Semana (acordeón nivel 2) ── */}
+                      <button
+                        type="button"
+                        onClick={() => toggleWeek(weekKey)}
+                        className="w-full flex items-center justify-between px-5 py-3 bg-gray-50/70 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-700">{wl}</span>
+                          <span className="text-xs text-gray-400">· {range}</span>
+                          <Badge variant="secondary" className="text-[11px] py-0">{evs.length}</Badge>
+                        </div>
+                        {isWeekOpen
+                          ? <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                          : <ChevronRight className="h-3.5 w-3.5 text-gray-400 shrink-0" />}
+                      </button>
+
+                      {/* ── Eventos dentro de la semana ── */}
+                      {isWeekOpen && (
+                        <div className="divide-y divide-gray-50">
+                          {evs.map((e) => (
+                            <div key={e.id} className="flex items-center gap-3 px-5 py-3">
+                              {/* Mini calendario */}
+                              <div className="flex flex-col items-center justify-center w-9 h-9 rounded-lg bg-orange-50 text-orange-700 shrink-0">
+                                <span className="text-xs font-bold leading-none">
+                                  {parseInt(e.fecha.slice(8, 10), 10)}
+                                </span>
+                                <span className="text-[10px] uppercase">
+                                  {format(parseISO(e.fecha), 'MMM', { locale: es })}
+                                </span>
+                              </div>
+                              {/* Grupo (primario) + evento (secundario) */}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 truncate">
+                                  {e.grupo ? e.grupo.nombre : 'Sin grupo'}
+                                </p>
+                                <p className="text-xs text-gray-500 truncate">{e.nombre}</p>
+                              </div>
+                              <Badge variant="warning" className="shrink-0">Sin reporte</Badge>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate">{e.nombre}</p>
-                              <p className="text-xs text-gray-400">
-                                {e.grupo ? e.grupo.nombre : 'Evento global'}
-                              </p>
-                            </div>
-                            <Badge variant="warning" className="shrink-0">Sin reporte</Badge>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
