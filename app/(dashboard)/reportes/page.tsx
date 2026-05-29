@@ -617,11 +617,12 @@ function TabLideres() {
 
 // ─── Tab: Sin Reporte ─────────────────────────────────────────────────────────
 
-type EventoSinReporte = {
+type FilaSinReporte = {
   id: string
-  nombre: string
+  eventoNombre: string
   fecha: string
-  grupo: { id: string; nombre: string } | null
+  grupo: { id: string; nombre: string }
+  esGlobal: boolean
 }
 
 function nrWeekLabel(dateStr: string): string {
@@ -647,7 +648,7 @@ function nrWeekRange(monthKey: string, weekLabel: string): string {
 function TabNoReportado() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
-  const [eventos, setEventos] = useState<EventoSinReporte[]>([])
+  const [filas, setFilas] = useState<FilaSinReporte[]>([])
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set())
   const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set())
 
@@ -655,35 +656,53 @@ function TabNoReportado() {
     let active = true
     ;(async () => {
       const hoy = format(new Date(), 'yyyy-MM-dd')
-      const { data } = await supabase
-        .from('eventos')
-        .select('id, nombre, fecha, estado, grupo:grupo_id(id, nombre), asistencias(id)')
-        .lte('fecha', hoy)
-        .neq('estado', 'cancelado')
-        .order('fecha', { ascending: false })
+
+      const [{ data: eventosData }, { data: gruposData }] = await Promise.all([
+        supabase
+          .from('eventos')
+          .select('id, nombre, fecha, grupo_id, grupo:grupo_id(id, nombre), asistencias(id)')
+          .lte('fecha', hoy)
+          .neq('estado', 'cancelado')
+          .order('fecha', { ascending: false }),
+        supabase
+          .from('grupos')
+          .select('id, nombre')
+          .eq('estado', true)
+          .is('deleted_at', null)
+          .order('nombre'),
+      ])
+
       if (!active) return
 
-      const rows = (data ?? [])
-        .filter((e) => ((e.asistencias ?? []) as { id: string }[]).length === 0)
-        .map((e) => {
-          const g = e.grupo as unknown
-          return {
-            id: e.id,
-            nombre: e.nombre,
-            fecha: e.fecha,
-            grupo: (Array.isArray(g) ? g[0] : g) as { id: string; nombre: string } | null,
+      const activeGroups = (gruposData ?? []) as { id: string; nombre: string }[]
+      const result: FilaSinReporte[] = []
+
+      for (const e of eventosData ?? []) {
+        const asistencias = (e.asistencias ?? []) as { id: string }[]
+        if (asistencias.length > 0) continue  // este evento ya fue reportado
+
+        const g = e.grupo as unknown
+        const grupo = (Array.isArray(g) ? g[0] : g) as { id: string; nombre: string } | null
+
+        if (grupo) {
+          // Evento de grupo: el grupo dueño no reportó
+          result.push({ id: e.id, eventoNombre: e.nombre, fecha: e.fecha, grupo, esGlobal: false })
+        } else {
+          // Evento global: ningún grupo reportó → una fila por cada grupo activo
+          for (const ag of activeGroups) {
+            result.push({ id: `${e.id}-${ag.id}`, eventoNombre: e.nombre, fecha: e.fecha, grupo: ag, esGlobal: true })
           }
-        })
+        }
+      }
 
-      setEventos(rows)
+      setFilas(result)
 
-      // Open current month and all its weeks that have events
       const curMonth = format(new Date(), 'yyyy-MM')
       setOpenMonths(new Set([curMonth]))
       setOpenWeeks(new Set(
-        rows
-          .filter((e) => e.fecha.startsWith(curMonth))
-          .map((e) => `${curMonth}-${nrWeekLabel(e.fecha)}`)
+        result
+          .filter((r) => r.fecha.startsWith(curMonth))
+          .map((r) => `${curMonth}-${nrWeekLabel(r.fecha)}`)
       ))
       setLoading(false)
     })()
@@ -691,18 +710,18 @@ function TabNoReportado() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const grouped = useMemo(() => {
-    const byMonth: Record<string, { label: string; weeks: Record<string, EventoSinReporte[]> }> = {}
-    for (const e of eventos) {
-      const mk = e.fecha.slice(0, 7)
+    const byMonth: Record<string, { label: string; weeks: Record<string, FilaSinReporte[]> }> = {}
+    for (const r of filas) {
+      const mk = r.fecha.slice(0, 7)
       if (!byMonth[mk]) {
         byMonth[mk] = {
           label: format(parseISO(mk + '-01'), 'MMMM yyyy', { locale: es }),
           weeks: {},
         }
       }
-      const wl = nrWeekLabel(e.fecha)
+      const wl = nrWeekLabel(r.fecha)
       if (!byMonth[mk].weeks[wl]) byMonth[mk].weeks[wl] = []
-      byMonth[mk].weeks[wl].push(e)
+      byMonth[mk].weeks[wl].push(r)
     }
     const cur = format(new Date(), 'yyyy-MM')
     return Object.keys(byMonth)
@@ -713,7 +732,7 @@ function TabNoReportado() {
         weeks: byMonth[key].weeks,
         count: Object.values(byMonth[key].weeks).reduce((s, w) => s + w.length, 0),
       }))
-  }, [eventos])
+  }, [filas])
 
   function toggleMonth(key: string) {
     setOpenMonths((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n })
@@ -733,12 +752,12 @@ function TabNoReportado() {
     )
   }
 
-  if (eventos.length === 0) {
+  if (filas.length === 0) {
     return (
       <Card>
         <CardContent className="py-12 flex flex-col items-center text-center gap-2">
           <p className="font-medium text-gray-700">Todo al día</p>
-          <p className="text-sm text-gray-400">Todos los eventos pasados tienen asistencia registrada.</p>
+          <p className="text-sm text-gray-400">Todos los grupos tienen asistencia registrada en sus eventos.</p>
         </CardContent>
       </Card>
     )
@@ -747,7 +766,7 @@ function TabNoReportado() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-gray-500">
-        {eventos.length} evento{eventos.length !== 1 ? 's' : ''} sin asistencia registrada
+        {filas.length} grupo{filas.length !== 1 ? 's' : ''} sin asistencia registrada
       </p>
       {grouped.map((month) => {
         const isMonthOpen = openMonths.has(month.key)
@@ -795,26 +814,28 @@ function TabNoReportado() {
                           : <ChevronRight className="h-3.5 w-3.5 text-gray-400 shrink-0" />}
                       </button>
 
-                      {/* ── Eventos dentro de la semana ── */}
+                      {/* ── Filas grupo/evento ── */}
                       {isWeekOpen && (
                         <div className="divide-y divide-gray-50">
-                          {evs.map((e) => (
-                            <div key={e.id} className="flex items-center gap-3 px-5 py-3">
+                          {evs.map((r) => (
+                            <div key={r.id} className="flex items-center gap-3 px-5 py-3">
                               {/* Mini calendario */}
                               <div className="flex flex-col items-center justify-center w-9 h-9 rounded-lg bg-orange-50 text-orange-700 shrink-0">
                                 <span className="text-xs font-bold leading-none">
-                                  {parseInt(e.fecha.slice(8, 10), 10)}
+                                  {parseInt(r.fecha.slice(8, 10), 10)}
                                 </span>
                                 <span className="text-[10px] uppercase">
-                                  {format(parseISO(e.fecha), 'MMM', { locale: es })}
+                                  {format(parseISO(r.fecha), 'MMM', { locale: es })}
                                 </span>
                               </div>
                               {/* Grupo (primario) + evento (secundario) */}
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-gray-900 truncate">
-                                  {e.grupo ? e.grupo.nombre : 'Sin grupo'}
+                                  {r.grupo.nombre}
                                 </p>
-                                <p className="text-xs text-gray-500 truncate">{e.nombre}</p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {r.eventoNombre}{r.esGlobal ? ' · global' : ''}
+                                </p>
                               </div>
                               <Badge variant="warning" className="shrink-0">Sin reporte</Badge>
                             </div>
