@@ -618,11 +618,11 @@ function TabLideres() {
 // ─── Tab: Sin Reporte ─────────────────────────────────────────────────────────
 
 type FilaSinReporte = {
-  id: string
+  eventoId: string
   eventoNombre: string
   fecha: string
-  grupo: { id: string; nombre: string }
   esGlobal: boolean
+  grupos: { id: string; nombre: string }[]
 }
 
 function nrWeekLabel(dateStr: string): string {
@@ -650,7 +650,8 @@ function TabNoReportado() {
   const [loading, setLoading] = useState(true)
   const [filas, setFilas] = useState<FilaSinReporte[]>([])
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set())
-  const [openWeeks, setOpenWeeks] = useState<Set<string>>(new Set())
+  const [openWeeks, setOpenWeeks]   = useState<Set<string>>(new Set())
+  const [openEvents, setOpenEvents] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let active = true
@@ -679,18 +680,17 @@ function TabNoReportado() {
 
       for (const e of eventosData ?? []) {
         const asistencias = (e.asistencias ?? []) as { id: string }[]
-        if (asistencias.length > 0) continue  // este evento ya fue reportado
+        if (asistencias.length > 0) continue
 
         const g = e.grupo as unknown
         const grupo = (Array.isArray(g) ? g[0] : g) as { id: string; nombre: string } | null
 
         if (grupo) {
-          // Evento de grupo: el grupo dueño no reportó
-          result.push({ id: e.id, eventoNombre: e.nombre, fecha: e.fecha, grupo, esGlobal: false })
+          result.push({ eventoId: e.id, eventoNombre: e.nombre, fecha: e.fecha, esGlobal: false, grupos: [grupo] })
         } else {
-          // Evento global: ningún grupo reportó → una fila por cada grupo activo
-          for (const ag of activeGroups) {
-            result.push({ id: `${e.id}-${ag.id}`, eventoNombre: e.nombre, fecha: e.fecha, grupo: ag, esGlobal: true })
+          // Evento global: todos los grupos activos son responsables
+          if (activeGroups.length > 0) {
+            result.push({ eventoId: e.id, eventoNombre: e.nombre, fecha: e.fecha, esGlobal: true, grupos: activeGroups })
           }
         }
       }
@@ -699,11 +699,9 @@ function TabNoReportado() {
 
       const curMonth = format(new Date(), 'yyyy-MM')
       setOpenMonths(new Set([curMonth]))
-      setOpenWeeks(new Set(
-        result
-          .filter((r) => r.fecha.startsWith(curMonth))
-          .map((r) => `${curMonth}-${nrWeekLabel(r.fecha)}`)
-      ))
+      const curFilas = result.filter((r) => r.fecha.startsWith(curMonth))
+      setOpenWeeks(new Set(curFilas.map((r) => `${curMonth}-${nrWeekLabel(r.fecha)}`)))
+      setOpenEvents(new Set(curFilas.map((r) => r.eventoId)))
       setLoading(false)
     })()
     return () => { active = false }
@@ -730,16 +728,21 @@ function TabNoReportado() {
         key,
         label: byMonth[key].label,
         weeks: byMonth[key].weeks,
-        count: Object.values(byMonth[key].weeks).reduce((s, w) => s + w.length, 0),
+        // count = total de grupos sin reporte en el mes
+        count: Object.values(byMonth[key].weeks)
+          .flat()
+          .reduce((s, r) => s + r.grupos.length, 0),
       }))
   }, [filas])
 
   function toggleMonth(key: string) {
     setOpenMonths((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n })
   }
-
   function toggleWeek(key: string) {
     setOpenWeeks((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n })
+  }
+  function toggleEvent(key: string) {
+    setOpenEvents((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n })
   }
 
   if (loading) {
@@ -763,16 +766,18 @@ function TabNoReportado() {
     )
   }
 
+  const totalGrupos = filas.reduce((s, r) => s + r.grupos.length, 0)
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-gray-500">
-        {filas.length} grupo{filas.length !== 1 ? 's' : ''} sin asistencia registrada
+        {filas.length} evento{filas.length !== 1 ? 's' : ''} · {totalGrupos} grupo{totalGrupos !== 1 ? 's' : ''} sin asistencia registrada
       </p>
       {grouped.map((month) => {
         const isMonthOpen = openMonths.has(month.key)
         return (
           <Card key={month.key} className="overflow-hidden">
-            {/* ── Mes (acordeón nivel 1) ── */}
+            {/* ── Mes (nivel 1) ── */}
             <button
               type="button"
               onClick={() => toggleMonth(month.key)}
@@ -787,18 +792,17 @@ function TabNoReportado() {
                 : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
             </button>
 
-            {/* ── Contenido del mes ── */}
             {isMonthOpen && (
               <div className="border-t border-gray-100 divide-y divide-gray-100">
                 {(['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'] as const).map((wl) => {
-                  const evs = month.weeks[wl]
-                  if (!evs?.length) return null
+                  const weekFilas = month.weeks[wl]
+                  if (!weekFilas?.length) return null
                   const weekKey = `${month.key}-${wl}`
                   const isWeekOpen = openWeeks.has(weekKey)
-                  const range = nrWeekRange(month.key, wl)
+                  const weekGrupos = weekFilas.reduce((s, r) => s + r.grupos.length, 0)
                   return (
                     <div key={wl}>
-                      {/* ── Semana (acordeón nivel 2) ── */}
+                      {/* ── Semana (nivel 2) ── */}
                       <button
                         type="button"
                         onClick={() => toggleWeek(weekKey)}
@@ -806,40 +810,69 @@ function TabNoReportado() {
                       >
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-gray-700">{wl}</span>
-                          <span className="text-xs text-gray-400">· {range}</span>
-                          <Badge variant="secondary" className="text-[11px] py-0">{evs.length}</Badge>
+                          <span className="text-xs text-gray-400">· {nrWeekRange(month.key, wl)}</span>
+                          <Badge variant="secondary" className="text-[11px] py-0">
+                            {weekFilas.length} evento{weekFilas.length !== 1 ? 's' : ''}
+                          </Badge>
+                          <Badge variant="warning" className="text-[11px] py-0">
+                            {weekGrupos} grupo{weekGrupos !== 1 ? 's' : ''}
+                          </Badge>
                         </div>
                         {isWeekOpen
                           ? <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                           : <ChevronRight className="h-3.5 w-3.5 text-gray-400 shrink-0" />}
                       </button>
 
-                      {/* ── Filas grupo/evento ── */}
+                      {/* ── Eventos dentro de la semana (nivel 3) ── */}
                       {isWeekOpen && (
-                        <div className="divide-y divide-gray-50">
-                          {evs.map((r) => (
-                            <div key={r.id} className="flex items-center gap-3 px-5 py-3">
-                              {/* Mini calendario */}
-                              <div className="flex flex-col items-center justify-center w-9 h-9 rounded-lg bg-orange-50 text-orange-700 shrink-0">
-                                <span className="text-xs font-bold leading-none">
-                                  {parseInt(r.fecha.slice(8, 10), 10)}
-                                </span>
-                                <span className="text-[10px] uppercase">
-                                  {format(parseISO(r.fecha), 'MMM', { locale: es })}
-                                </span>
+                        <div className="divide-y divide-gray-100">
+                          {weekFilas.map((ev) => {
+                            const isEvOpen = openEvents.has(ev.eventoId)
+                            return (
+                              <div key={ev.eventoId}>
+                                {/* Evento acordeón */}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleEvent(ev.eventoId)}
+                                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors"
+                                >
+                                  {/* Mini calendario */}
+                                  <div className="flex flex-col items-center justify-center w-9 h-9 rounded-lg bg-orange-50 text-orange-700 shrink-0">
+                                    <span className="text-xs font-bold leading-none">
+                                      {parseInt(ev.fecha.slice(8, 10), 10)}
+                                    </span>
+                                    <span className="text-[10px] uppercase">
+                                      {format(parseISO(ev.fecha), 'MMM', { locale: es })}
+                                    </span>
+                                  </div>
+                                  <div className="flex-1 min-w-0 text-left">
+                                    <p className="text-sm font-semibold text-gray-900 truncate">
+                                      {ev.eventoNombre}
+                                      {ev.esGlobal && <span className="ml-1 text-xs font-normal text-gray-400">(global)</span>}
+                                    </p>
+                                    <p className="text-xs text-gray-400">
+                                      {ev.grupos.length} grupo{ev.grupos.length !== 1 ? 's' : ''} sin reporte
+                                    </p>
+                                  </div>
+                                  {isEvOpen
+                                    ? <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                    : <ChevronRight className="h-3.5 w-3.5 text-gray-400 shrink-0" />}
+                                </button>
+
+                                {/* Lista de grupos sin reporte */}
+                                {isEvOpen && (
+                                  <div className="bg-orange-50/40 divide-y divide-orange-100/60">
+                                    {ev.grupos.map((g) => (
+                                      <div key={g.id} className="flex items-center justify-between pl-14 pr-5 py-2.5">
+                                        <span className="text-sm text-gray-800">{g.nombre}</span>
+                                        <Badge variant="warning">Sin reporte</Badge>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                              {/* Grupo (primario) + evento (secundario) */}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-900 truncate">
-                                  {r.grupo.nombre}
-                                </p>
-                                <p className="text-xs text-gray-500 truncate">
-                                  {r.eventoNombre}{r.esGlobal ? ' · global' : ''}
-                                </p>
-                              </div>
-                              <Badge variant="warning" className="shrink-0">Sin reporte</Badge>
-                            </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
                     </div>
