@@ -19,19 +19,29 @@ import { AsistenciasFilters } from './asistencias-filters'
 
 export const metadata: Metadata = { title: 'Asistencias' }
 
+export const dynamic = 'force-dynamic'
+
 interface PageProps {
   searchParams: Promise<{
     search?: string
     grupo_id?: string
+    estado?: string
     fecha?: string
+    page?: string
   }>
 }
+
+const PER_PAGE = 10
 
 export default async function AsistenciasPage({ searchParams }: PageProps) {
   const params = await searchParams
   const search = params.search?.trim() ?? ''
   const grupoFilter = params.grupo_id ?? ''
+  const estadoFilter = params.estado ?? ''
   const fechaFilter = params.fecha ?? ''
+  const page = Math.max(1, parseInt(params.page ?? '1', 10))
+  const from = (page - 1) * PER_PAGE
+  const to = from + PER_PAGE - 1
 
   const supabase = await createClient()
 
@@ -43,37 +53,95 @@ export default async function AsistenciasPage({ searchParams }: PageProps) {
       .order('nombre'),
   ])
 
-  // Get events that have at least some attendance data - show recent events
-  let eventosQuery = supabase
+  const today = new Date().toISOString().split('T')[0]
+
+  let allIdsQuery = supabase
     .from('eventos')
-    .select('*, grupo:grupos(id,nombre)')
-    .order('fecha', { ascending: false })
-    .limit(100)
+    .select('id, fecha, hora_inicio, estado')
 
   if (search) {
-    eventosQuery = eventosQuery.ilike('nombre', `%${search}%`)
+    allIdsQuery = allIdsQuery.ilike('nombre', `%${search}%`)
   }
   if (grupoFilter) {
-    eventosQuery = eventosQuery.eq('grupo_id', grupoFilter)
+    allIdsQuery = allIdsQuery.eq('grupo_id', grupoFilter)
+  }
+  if (estadoFilter) {
+    allIdsQuery = allIdsQuery.eq('estado', estadoFilter)
   }
   if (fechaFilter) {
-    eventosQuery = eventosQuery.eq('fecha', fechaFilter)
+    allIdsQuery = allIdsQuery.eq('fecha', fechaFilter)
   }
 
-  const { data: eventosRaw } = await eventosQuery
+  const { data: allIdsRaw } = await allIdsQuery
 
-  // Sort: past events most-recent-first, then upcoming events soonest-first
-  const today = new Date().toISOString().split('T')[0]
-  const eventos = [...(eventosRaw ?? [])].sort((a, b) => {
-    const aIsPast = a.fecha <= today
-    const bIsPast = b.fecha <= today
-    if (aIsPast && bIsPast) return b.fecha.localeCompare(a.fecha) // most recent past first
-    if (!aIsPast && !bIsPast) return a.fecha.localeCompare(b.fecha) // soonest future first
-    return aIsPast ? -1 : 1                                         // past before future
-  })
+  const rawList = allIdsRaw ?? []
+  let sortedIds: typeof rawList = []
+
+  if (estadoFilter || fechaFilter) {
+    // Con filtro específico, ordenar por fecha descendente estándar
+    sortedIds = [...rawList].sort((a, b) => {
+      const cmp = b.fecha.localeCompare(a.fecha)
+      if (cmp !== 0) return cmp
+      return (b.hora_inicio || '').localeCompare(a.hora_inicio || '')
+    })
+  } else {
+    // 1. Eventos futuros o de hoy (más próximo primero)
+    const futureEvents = rawList
+      .filter((e) => e.fecha >= today)
+      .sort((a, b) => {
+        const cmp = a.fecha.localeCompare(b.fecha)
+        if (cmp !== 0) return cmp
+        return (a.hora_inicio || '').localeCompare(b.hora_inicio || '')
+      })
+
+    // 2. Eventos pasados (más reciente primero)
+    const pastEvents = rawList
+      .filter((e) => e.fecha < today)
+      .sort((a, b) => {
+        const cmp = b.fecha.localeCompare(a.fecha)
+        if (cmp !== 0) return cmp
+        return (b.hora_inicio || '').localeCompare(a.hora_inicio || '')
+      })
+
+    // Solo el SIGUIENTE más próximo va de primero, seguido de los pasados en orden desc
+    const nextUpcoming = futureEvents.length > 0 ? futureEvents[0] : null
+    const otherFutures = futureEvents.slice(1)
+
+    sortedIds = [
+      ...(nextUpcoming ? [nextUpcoming] : []),
+      ...pastEvents,
+      ...otherFutures,
+    ]
+  }
+
+  const total = sortedIds.length
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE))
+  const fromIndex = total === 0 ? 0 : from + 1
+  const toIndex = Math.min(to + 1, total)
+
+  const pageIds = sortedIds.slice(from, to + 1).map((e) => e.id)
+
+  let eventos: Array<{
+    id: string
+    nombre: string
+    fecha: string
+    estado: string
+    grupo?: { id: string; nombre: string } | null
+    [key: string]: unknown
+  }> = []
+
+  if (pageIds.length > 0) {
+    const { data: pageEventos } = await supabase
+      .from('eventos')
+      .select('*, grupo:grupos(id,nombre)')
+      .in('id', pageIds)
+
+    const eventoMap = new Map((pageEventos ?? []).map((e) => [e.id, e]))
+    eventos = pageIds.map((id) => eventoMap.get(id)).filter(Boolean) as typeof eventos
+  }
 
   // Get attendance counts per event
-  const eventoIds = (eventos ?? []).map((e) => e.id)
+  const eventoIds = pageIds
   const asistenciaMap: Record<string, { asistio: number; no_asistio: number; visitantes: number }> = {}
 
   if (eventoIds.length > 0) {
@@ -109,6 +177,7 @@ export default async function AsistenciasPage({ searchParams }: PageProps) {
         grupos={(grupos ?? []) as Pick<Grupo, 'id' | 'nombre'>[]}
         defaultSearch={search}
         defaultGrupo={grupoFilter}
+        defaultEstado={estadoFilter}
         defaultFecha={fechaFilter}
       />
 
@@ -197,6 +266,55 @@ export default async function AsistenciasPage({ searchParams }: PageProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      {total > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-500 pt-1">
+          <p className="text-xs sm:text-sm">
+            Mostrando <span className="font-medium text-gray-900">{fromIndex}</span> a{' '}
+            <span className="font-medium text-gray-900">{toIndex}</span> de{' '}
+            <span className="font-medium text-gray-900">{total}</span> eventos
+          </p>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs sm:text-sm mr-1">
+              Página {page} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              asChild={page > 1}
+            >
+              {page > 1 ? (
+                <Link
+                  href={`?search=${encodeURIComponent(search)}&grupo_id=${encodeURIComponent(grupoFilter)}&estado=${encodeURIComponent(estadoFilter)}&fecha=${encodeURIComponent(fechaFilter)}&page=${page - 1}`}
+                >
+                  Anterior
+                </Link>
+              ) : (
+                'Anterior'
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              asChild={page < totalPages}
+            >
+              {page < totalPages ? (
+                <Link
+                  href={`?search=${encodeURIComponent(search)}&grupo_id=${encodeURIComponent(grupoFilter)}&estado=${encodeURIComponent(estadoFilter)}&fecha=${encodeURIComponent(fechaFilter)}&page=${page + 1}`}
+                >
+                  Siguiente
+                </Link>
+              ) : (
+                'Siguiente'
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

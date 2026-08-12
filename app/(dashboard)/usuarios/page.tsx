@@ -58,17 +58,18 @@ interface UsuarioRow extends Usuario {
 function EditarRolModal({
   usuario,
   roles,
+  isSuperAdminUser,
   open,
   onClose,
   onSaved,
 }: {
   usuario: UsuarioRow | null
   roles: Rol[]
+  isSuperAdminUser: boolean
   open: boolean
   onClose: () => void
   onSaved: () => void
 }) {
-  const supabase = createClient()
   const [rolId, setRolId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -77,19 +78,28 @@ function EditarRolModal({
     if (usuario) setRolId(usuario.rol_id ?? '')
   }, [usuario])
 
+  const availableRoles = isSuperAdminUser
+    ? roles
+    : roles.filter(r => !r.nombre.toLowerCase().replace(/[\s_-]/g, '').includes('superadmin'))
+
   const handleSave = async () => {
     if (!usuario) return
     setSaving(true)
     setError('')
-    const { error: err } = await supabase
-      .from('usuarios')
-      .update({ rol_id: rolId || null })
-      .eq('id', usuario.id)
+
+    const res = await fetch(`/api/usuarios/${usuario.id}/rol`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rol_id: rolId || null }),
+    })
+    const data = await res.json()
     setSaving(false)
-    if (err) {
-      setError(err.message)
+
+    if (!res.ok) {
+      setError(data.error ?? 'Error al actualizar el rol')
       return
     }
+
     onSaved()
     onClose()
   }
@@ -111,7 +121,7 @@ function EditarRolModal({
                 <SelectValue placeholder="Sin rol asignado" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map(r => (
+                {availableRoles.map(r => (
                   <SelectItem key={r.id} value={r.id}>{r.nombre}</SelectItem>
                 ))}
               </SelectContent>
@@ -141,12 +151,14 @@ function NuevoUsuarioModal({
   onCreated,
   roles,
   personas,
+  isSuperAdminUser,
 }: {
   open: boolean
   onClose: () => void
   onCreated: () => void
   roles: Rol[]
   personas: Persona[]
+  isSuperAdminUser: boolean
 }) {
   const [form, setForm] = useState({
     email: '',
@@ -158,6 +170,10 @@ function NuevoUsuarioModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  const availableRoles = isSuperAdminUser
+    ? roles
+    : roles.filter(r => !r.nombre.toLowerCase().replace(/[\s_-]/g, '').includes('superadmin'))
 
   const filteredPersonas = personas.filter(p => {
     const q = search.toLowerCase()
@@ -294,7 +310,7 @@ function NuevoUsuarioModal({
                 <SelectValue placeholder="Sin rol" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map(r => (
+                {availableRoles.map(r => (
                   <SelectItem key={r.id} value={r.id}>{r.nombre}</SelectItem>
                 ))}
               </SelectContent>
@@ -325,28 +341,99 @@ function NuevoUsuarioModal({
   )
 }
 
-// ─── Modal: Reset Password ────────────────────────────────────────────────────
+// ─── Modal: Cambiar Contraseña ────────────────────────────────────────────────
 
-function ResetPasswordModal({
+function CambiarPasswordModal({
   open,
   onClose,
-  link,
-  email,
+  usuario,
 }: {
   open: boolean
   onClose: () => void
-  link: string
-  email: string
+  usuario: UsuarioRow | null
 }) {
+  const [nuevaPassword, setNuevaPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [linkGenerado, setLinkGenerado] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const handleCopy = async () => {
+  const email = usuario?.persona?.correo || usuario?.auth_email || 'el usuario'
+  const nombre = usuario?.persona ? `${usuario.persona.nombres} ${usuario.persona.apellidos}` : 'Usuario'
+
+  useEffect(() => {
+    setNuevaPassword('')
+    setError('')
+    setSuccess('')
+    setLinkGenerado(null)
+    setCopied(false)
+  }, [open, usuario])
+
+  const handleUpdatePassword = async () => {
+    if (!usuario) return
+    if (!nuevaPassword.trim()) {
+      setError('Escribe una nueva contraseña')
+      return
+    }
+    if (nuevaPassword.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    setSuccess('')
+
+    const res = await fetch(`/api/usuarios/${usuario.id}/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: nuevaPassword }),
+    })
+    const data = await res.json()
+    setLoading(false)
+
+    if (!res.ok) {
+      setError(data.error ?? 'Error al actualizar la contraseña')
+      return
+    }
+
+    setSuccess('Contraseña cambiada exitosamente.')
+    setTimeout(() => {
+      onClose()
+    }, 1500)
+  }
+
+  const handleGenerateLink = async () => {
+    if (!usuario) return
+    setLoading(true)
+    setError('')
+    setSuccess('')
+
+    const res = await fetch(`/api/usuarios/${usuario.id}/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+    const data = await res.json()
+    setLoading(false)
+
+    if (!res.ok || !data.link) {
+      setError(data.error ?? 'Error generando el enlace de recuperación')
+      return
+    }
+
+    setLinkGenerado(data.link)
+  }
+
+  const handleCopyLink = async () => {
+    if (!linkGenerado) return
     try {
-      await navigator.clipboard.writeText(link)
+      await navigator.clipboard.writeText(linkGenerado)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // fallback: select the input text
+      // fallback
     }
   }
 
@@ -354,28 +441,98 @@ function ResetPasswordModal({
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent size="md">
         <DialogHeader>
-          <DialogTitle>Enlace de restablecimiento</DialogTitle>
+          <DialogTitle>Cambiar contraseña</DialogTitle>
           <DialogDescription>
-            Copia este enlace y envíalo a <strong>{email}</strong>. Expira en 24 horas.
+            Actualizar contraseña de <strong>{nombre}</strong> ({email})
           </DialogDescription>
         </DialogHeader>
+
         <div className="p-6 space-y-4">
-          <div className="flex gap-2">
-            <input
-              readOnly
-              value={link}
-              className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-600 bg-gray-50 font-mono truncate"
-              onClick={e => (e.target as HTMLInputElement).select()}
-            />
-            <Button variant="outline" size="sm" onClick={handleCopy} className="shrink-0">
-              {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
-              {copied ? 'Copiado' : 'Copiar'}
-            </Button>
+          {/* Opción 1: Asignar contraseña directamente */}
+          <div className="space-y-3 p-4 rounded-xl bg-gray-50 border border-gray-200">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-700">
+              Opción 1: Establecer nueva contraseña directamente
+            </p>
+            <div className="space-y-2">
+              <Input
+                type="password"
+                placeholder="Escribe la nueva contraseña (mín. 6 caracteres)"
+                value={nuevaPassword}
+                onChange={e => setNuevaPassword(e.target.value)}
+                hint="Mínimo 6 caracteres"
+              />
+              <Button
+                onClick={handleUpdatePassword}
+                loading={loading}
+                className="w-full"
+                size="sm"
+              >
+                <KeyRound size={14} />
+                Guardar nueva contraseña
+              </Button>
+            </div>
           </div>
-          <p className="text-xs text-gray-400">
-            Al abrir este enlace, el usuario podrá crear una nueva contraseña. El enlace es de un solo uso.
-          </p>
+
+          <div className="relative flex py-1 items-center">
+            <div className="flex-grow border-t border-gray-200"></div>
+            <span className="flex-shrink mx-3 text-xs text-gray-400 font-medium">O TAMBIÉN</span>
+            <div className="flex-grow border-t border-gray-200"></div>
+          </div>
+
+          {/* Opción 2: Generar enlace de recuperación */}
+          <div className="space-y-3 p-4 rounded-xl bg-blue-50/50 border border-blue-200">
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-900">
+              Opción 2: Generar enlace de recuperación
+            </p>
+            <p className="text-xs text-gray-600">
+              Genera un enlace de un solo uso válido por 24 horas para enviárselo al usuario.
+            </p>
+
+            {linkGenerado ? (
+              <div className="space-y-2 pt-1">
+                <div className="flex gap-2">
+                  <input
+                    readOnly
+                    value={linkGenerado}
+                    className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-600 bg-white font-mono truncate"
+                    onClick={e => (e.target as HTMLInputElement).select()}
+                  />
+                  <Button variant="outline" size="sm" onClick={handleCopyLink} className="shrink-0 bg-white">
+                    {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+                    {copied ? 'Copiado' : 'Copiar'}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-green-700 font-medium">
+                  ✓ Enlace generado listo para enviar por WhatsApp o correo.
+                </p>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleGenerateLink}
+                loading={loading}
+                className="w-full bg-white"
+              >
+                Generar enlace de restablecimiento
+              </Button>
+            )}
+          </div>
+
+          {error && (
+            <Alert variant="danger">
+              <AlertCircle size={14} />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {success && (
+            <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-700 font-medium">
+              ✓ {success}
+            </div>
+          )}
         </div>
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cerrar</Button>
         </DialogFooter>
@@ -386,6 +543,8 @@ function ResetPasswordModal({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const PER_PAGE = 10
+
 export default function UsuariosPage() {
   const supabase = createClient()
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([])
@@ -393,38 +552,65 @@ export default function UsuariosPage() {
   const [personas, setPersonas] = useState<Persona[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [isSuperAdminUser, setIsSuperAdminUser] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editModal, setEditModal] = useState<{ open: boolean; usuario: UsuarioRow | null }>({
     open: false,
     usuario: null,
   })
   const [toggling, setToggling] = useState<string | null>(null)
-  const [resetting, setResetting] = useState<string | null>(null)
-  const [resetModal, setResetModal] = useState<{ open: boolean; link: string; email: string }>({
-    open: false, link: '', email: '',
+  const [resetModal, setResetModal] = useState<{ open: boolean; usuario: UsuarioRow | null }>({
+    open: false,
+    usuario: null,
   })
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
-    const [{ data: usuariosData }, { data: rolesData }, { data: personasData }] = await Promise.all([
-      supabase
-        .from('usuarios')
-        .select(`
-          *,
-          persona:persona_id(id, nombres, apellidos, correo, tipo_persona),
-          rol:rol_id(id, nombre, activo)
-        `)
-        .order('created_at', { ascending: false }),
-      supabase.from('roles').select('*').eq('activo', true).order('nombre'),
-      supabase.from('personas').select('id, nombres, apellidos, correo, tipo_persona').is('deleted_at', null).order('nombres'),
-    ])
-    setUsuarios((usuariosData ?? []) as UsuarioRow[])
-    setRoles(rolesData ?? [])
-    setPersonas((personasData ?? []) as Persona[])
-    setLoading(false)
+  // Load modal dependencies once
+  useEffect(() => {
+    async function loadAux() {
+      const [{ data: rolesData }, { data: personasData }] = await Promise.all([
+        supabase.from('roles').select('*').eq('activo', true).order('nombre'),
+        supabase.from('personas').select('id, nombres, apellidos, correo, tipo_persona').is('deleted_at', null).order('nombres'),
+      ])
+      setRoles(rolesData ?? [])
+      setPersonas((personasData ?? []) as Persona[])
+    }
+    loadAux()
   }, [])
 
-  useEffect(() => { loadData() }, [loadData])
+  // Load usuarios with backend pagination and auth_email fallback via API
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(
+        `/api/usuarios?page=${page}&limit=${PER_PAGE}&search=${encodeURIComponent(search.trim())}`
+      )
+      const data = await res.json()
+      if (res.ok) {
+        setUsuarios(data.usuarios ?? [])
+        setTotalCount(data.totalCount ?? 0)
+        setIsSuperAdminUser(!!data.is_superadmin)
+      } else {
+        setUsuarios([])
+        setTotalCount(0)
+      }
+    } catch {
+      setUsuarios([])
+      setTotalCount(0)
+    } finally {
+      setLoading(false)
+    }
+  }, [page, search])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    setPage(1)
+  }
 
   const handleToggleEstado = async (usuario: UsuarioRow) => {
     setToggling(usuario.id)
@@ -438,25 +624,13 @@ export default function UsuariosPage() {
     setToggling(null)
   }
 
-  const handleResetPassword = async (u: UsuarioRow) => {
-    setResetting(u.id)
-    const res = await fetch(`/api/usuarios/${u.id}/reset`, { method: 'POST' })
-    const data = await res.json()
-    setResetting(null)
-    if (!res.ok || !data.link) {
-      alert(data.error ?? 'Error generando el enlace')
-      return
-    }
-    setResetModal({ open: true, link: data.link, email: data.email })
+  const handleOpenResetPassword = (u: UsuarioRow) => {
+    setResetModal({ open: true, usuario: u })
   }
 
-  const filtered = usuarios.filter(u => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    const nombre = u.persona ? `${u.persona.nombres} ${u.persona.apellidos}`.toLowerCase() : ''
-    const correo = (u.persona?.correo ?? '').toLowerCase()
-    return nombre.includes(q) || correo.includes(q)
-  })
+  const totalPages = Math.max(1, Math.ceil(totalCount / PER_PAGE))
+  const fromIndex = totalCount === 0 ? 0 : (page - 1) * PER_PAGE + 1
+  const toIndex = Math.min(page * PER_PAGE, totalCount)
 
   return (
     <div className="space-y-5">
@@ -477,7 +651,7 @@ export default function UsuariosPage() {
         <Input
           placeholder="Buscar por nombre o email..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => handleSearchChange(e.target.value)}
           leftIcon={<Search size={14} />}
         />
       </div>
@@ -503,14 +677,14 @@ export default function UsuariosPage() {
                     Cargando...
                   </TableCell>
                 </TableRow>
-              ) : filtered.length === 0 ? (
+              ) : usuarios.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-10 text-gray-400">
                     No se encontraron usuarios.
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map(u => (
+                usuarios.map(u => (
                   <TableRow key={u.id}>
                     <TableCell>
                       {u.persona ? (
@@ -521,8 +695,8 @@ export default function UsuariosPage() {
                         <p className="text-sm text-gray-400 italic">Sin persona asociada</p>
                       )}
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell text-xs text-gray-500">
-                      {u.persona?.correo ?? <span className="text-gray-300">—</span>}
+                    <TableCell className="hidden sm:table-cell text-xs text-gray-500 font-mono">
+                      {u.persona?.correo || u.auth_email || <span className="text-gray-300">—</span>}
                     </TableCell>
                     <TableCell>
                       {u.rol ? (
@@ -565,9 +739,8 @@ export default function UsuariosPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          title="Resetear contraseña"
-                          onClick={() => handleResetPassword(u)}
-                          loading={resetting === u.id}
+                          title="Cambiar contraseña"
+                          onClick={() => handleOpenResetPassword(u)}
                         >
                           <KeyRound size={14} />
                         </Button>
@@ -581,6 +754,39 @@ export default function UsuariosPage() {
         </CardContent>
       </Card>
 
+      {/* Pagination */}
+      {totalCount > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-500 pt-1">
+          <p className="text-xs sm:text-sm">
+            Mostrando <span className="font-medium text-gray-900">{fromIndex}</span> a{' '}
+            <span className="font-medium text-gray-900">{toIndex}</span> de{' '}
+            <span className="font-medium text-gray-900">{totalCount}</span> usuarios
+          </p>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs sm:text-sm mr-1">
+              Página {page} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Modal nuevo */}
       <NuevoUsuarioModal
         open={modalOpen}
@@ -588,6 +794,7 @@ export default function UsuariosPage() {
         onCreated={loadData}
         roles={roles}
         personas={personas}
+        isSuperAdminUser={isSuperAdminUser}
       />
 
       {/* Modal editar rol */}
@@ -597,14 +804,14 @@ export default function UsuariosPage() {
         onSaved={loadData}
         usuario={editModal.usuario}
         roles={roles}
+        isSuperAdminUser={isSuperAdminUser}
       />
 
-      {/* Modal reset password */}
-      <ResetPasswordModal
+      {/* Modal cambiar/reset password */}
+      <CambiarPasswordModal
         open={resetModal.open}
-        onClose={() => setResetModal({ open: false, link: '', email: '' })}
-        link={resetModal.link}
-        email={resetModal.email}
+        onClose={() => setResetModal({ open: false, usuario: null })}
+        usuario={resetModal.usuario}
       />
     </div>
   )

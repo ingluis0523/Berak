@@ -1,0 +1,50 @@
+===============================================================================
+              BERAK - ENTORNO LOCAL AISLADO (DOCKER SUPABASE) si
+===============================================================================
+
+TODOS los usuarios listados a continuacion tienen asignada la contrasena:
+>> 123456 <<
+
+URL de la aplicacion: http://localhost:3000/login
+Panel Supabase Studio local: http://localhost:54323
+
+===============================================================================
+USUARIOS POR ROL:
+===============================================================================
+
+[ROL: SUPERADMIN]
+  - iglesiaapostolicajcreina@gmail.com
+
+[ROL: ANCIANO]
+  - afoc413@gmail.com
+  - ceomakingapps@gmail.com
+  - jannep-0182@hotmail.com
+  - mecanicainca@gmail.com
+
+[ROL: LIDER CASA DE PAZ]
+  - alexandersantiagodelatorre@gmail.com
+  - alexandramaria.g@hotmail.com
+  - alvarologreira@gmail.com
+  - anasuarezr06@gmail.com
+  - canobenitesl@gmail.com
+  - contacto@parqueygrama.com
+  - corderomariacamila@gmail.com
+  - cristiandrr2004@gmail.com
+  - dacostahooker@gmail.com
+  - delfina2424@gmail.com
+  - heyneproducciones24@gmail.com
+  - lianaavendano35@gmail.com
+  - lucycova470@gmail.com
+  - marielalopezgutierrez6@gmail.com
+  - mariogarzonrocha@gmail.com
+  - martharodelos@gmail.com
+  - maryjimenezg2@gmail.com
+  - monicapatriciaperezbustillo@gmail.com
+  - normitarango@hotmail.com
+  - pamartinezmendible@gmail.com
+  - shirleyr2004@hotmail.com
+  - zullytevistebien@hotmail.com
+
+===============================================================================
+Base de datos de produccion: INTACTA Y NO MODIFICADA.
+===============================================================================

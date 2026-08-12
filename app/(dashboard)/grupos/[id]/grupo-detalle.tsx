@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Pencil, UserPlus, UserMinus, CalendarCheck, ChevronDown, ChevronRight, Eye, Plus, Check } from 'lucide-react'
+import { ArrowLeft, Pencil, UserPlus, UserMinus, CalendarCheck, ChevronDown, ChevronRight, ChevronLeft, Eye, Plus, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -107,6 +107,8 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
   const todayStr = localToday()
 
   const [miembros, setMiembros] = useState<GrupoMiembro[]>(miembrosIniciales)
+  const [miembrosPage, setMiembrosPage] = useState(1)
+  const MIEMBROS_PER_PAGE = 10
 
   const nuevosMiembros = useMemo(() => {
     return miembros.filter((m) => {
@@ -458,40 +460,79 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                 <p>No hay miembros en este grupo</p>
                 <p className="text-xs mt-1">Agrega el primer miembro para comenzar</p>
               </div>
-            ) : (
-              <ul className="divide-y divide-gray-100">
-                {miembros.map((m) => {
-                  const p = m.persona as Persona | undefined
-                  return (
-                    <li key={m.id} className="flex items-center gap-3 px-5 py-3">
-                      <Avatar className="h-9 w-9 shrink-0">
-                        <AvatarFallback>
-                          {p ? initials(p.nombres, p.apellidos) : '?'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 text-sm truncate">
-                          {p ? `${p.nombres} ${p.apellidos}` : 'Persona desconocida'}
-                        </p>
-                        <p className="text-xs text-gray-500 capitalize">
-                          {p?.tipo_persona ?? '—'} · Ingresó: {formatDate(m.fecha_ingreso)}
-                        </p>
+            ) : (() => {
+              const totalMiembrosPages = Math.max(1, Math.ceil(miembros.length / MIEMBROS_PER_PAGE))
+              const safeMiembrosPage = Math.min(miembrosPage, totalMiembrosPages)
+              const paginatedMiembros = miembros.slice((safeMiembrosPage - 1) * MIEMBROS_PER_PAGE, safeMiembrosPage * MIEMBROS_PER_PAGE)
+              const fromM = (safeMiembrosPage - 1) * MIEMBROS_PER_PAGE + 1
+              const toM = Math.min(safeMiembrosPage * MIEMBROS_PER_PAGE, miembros.length)
+              return (
+                <>
+                  <ul className="divide-y divide-gray-100">
+                    {paginatedMiembros.map((m) => {
+                      const p = m.persona as Persona | undefined
+                      return (
+                        <li key={m.id} className="flex items-center gap-3 px-5 py-3">
+                          <Avatar className="h-9 w-9 shrink-0">
+                            <AvatarFallback>
+                              {p ? initials(p.nombres, p.apellidos) : '?'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 text-sm truncate">
+                              {p ? `${p.nombres} ${p.apellidos}` : 'Persona desconocida'}
+                            </p>
+                            <p className="text-xs text-gray-500 capitalize">
+                              {p?.tipo_persona ?? '—'} · Ingresó: {formatDate(m.fecha_ingreso)}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            title="Remover del grupo"
+                            loading={removeLoadingId === m.id}
+                            onClick={() => handleRemoveMiembro(m)}
+                            className="text-red-400 hover:text-red-600 hover:bg-red-50"
+                          >
+                            <UserMinus className="h-3.5 w-3.5" />
+                          </Button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                  {miembros.length > MIEMBROS_PER_PAGE && (
+                    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-sm text-gray-500">
+                      <span className="text-xs">
+                        {fromM}–{toM} de {miembros.length} miembros
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs mr-1">Pág. {safeMiembrosPage}/{totalMiembrosPages}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={safeMiembrosPage <= 1}
+                          onClick={() => setMiembrosPage((p) => Math.max(1, p - 1))}
+                          className="gap-1 h-7 px-2"
+                        >
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                          Anterior
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={safeMiembrosPage >= totalMiembrosPages}
+                          onClick={() => setMiembrosPage((p) => Math.min(totalMiembrosPages, p + 1))}
+                          className="gap-1 h-7 px-2"
+                        >
+                          Siguiente
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        title="Remover del grupo"
-                        loading={removeLoadingId === m.id}
-                        onClick={() => handleRemoveMiembro(m)}
-                        className="text-red-400 hover:text-red-600 hover:bg-red-50"
-                      >
-                        <UserMinus className="h-3.5 w-3.5" />
-                      </Button>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </div>
         </TabsContent>
 

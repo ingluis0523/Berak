@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 
 export const metadata: Metadata = { title: 'Detalle Dashboard' }
 
@@ -26,17 +26,22 @@ const TIPO_LABELS: Record<string, string> = {
   inactivos: 'Personas Inactivas',
 }
 
+const PER_PAGE = 10
+
 interface PageProps {
-  searchParams: Promise<{ tipo?: string }>
+  searchParams: Promise<{ tipo?: string; page?: string }>
 }
 
 export default async function DashboardDetallePage({ searchParams }: PageProps) {
-  const { tipo } = await searchParams
+  const { tipo, page: pageParam } = await searchParams
 
   if (!tipo || !TIPO_LABELS[tipo]) notFound()
 
   const supabase = await createClient()
   const title = TIPO_LABELS[tipo]
+  const page = Math.max(1, parseInt(pageParam ?? '1', 10))
+  const from = (page - 1) * PER_PAGE
+  const to = from + PER_PAGE - 1
 
   // ── Grupos activos ────────────────────────────────────────────────────────
   if (tipo === 'grupos_activos') {
@@ -67,7 +72,7 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
     }
 
     return (
-      <DetalleLayout title={title} count={grupos?.length ?? 0}>
+      <DetalleLayout title={title} count={grupos?.length ?? 0} page={page} totalPages={1} tipo={tipo}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -105,8 +110,8 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
                     {memberCountMap[g.id] ?? 0}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/grupos/${g.id}`}>Ver →</Link>
+                    <Button variant="ghost" size="icon-sm" title="Ver" asChild>
+                      <Link href={`/grupos/${g.id}`}><Eye size={15} /></Link>
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -134,7 +139,7 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
       .order('fecha', { ascending: true })
 
     return (
-      <DetalleLayout title={title} count={eventos?.length ?? 0}>
+      <DetalleLayout title={title} count={eventos?.length ?? 0} page={page} totalPages={1} tipo={tipo}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -181,8 +186,8 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/eventos/${ev.id}`}>Ver →</Link>
+                    <Button variant="ghost" size="icon-sm" title="Ver" asChild>
+                      <Link href={`/eventos/${ev.id}`}><Eye size={15} /></Link>
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -195,45 +200,44 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
   }
 
   // ── Personas views (total_personas, nuevos_mes, inactivos) ────────────────
-  const supabase2 = supabase
 
-  // Step 1: resolve estado IDs when needed
+  // Resolve estado ID for inactivos only
   let estadoFilterId: string | null = null
-  if (tipo === 'nuevos_mes' || tipo === 'inactivos') {
-    const pattern = tipo === 'nuevos_mes' ? 'nuevo' : '%inactiv%'
-    const { data: estadoRow } = await supabase2
+  if (tipo === 'inactivos') {
+    const { data: estadoRow } = await supabase
       .from('estados_persona')
       .select('id')
-      .ilike('nombre', pattern)
+      .ilike('nombre', '%inactiv%')
       .limit(1)
       .maybeSingle()
     estadoFilterId = estadoRow?.id ?? null
   }
 
-  // Step 2: build personas query
-  let personasQuery = supabase2
+  // Build personas query with pagination + ordenado por fecha_registro desc
+  let personasQuery = supabase
     .from('personas')
-    .select('id, nombres, apellidos, tipo_persona, fecha_registro, estado_persona:estado_persona_id(id, nombre, color)')
+    .select('id, nombres, apellidos, tipo_persona, fecha_registro, estado_persona:estado_persona_id(id, nombre, color)', { count: 'exact' })
     .is('deleted_at', null)
-    .order('nombres')
+    .order('fecha_registro', { ascending: false })
+    .range(from, to)
 
   if (tipo === 'nuevos_mes') {
     const now = new Date()
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
     personasQuery = personasQuery.gte('fecha_registro', startOfMonth)
-    if (estadoFilterId) personasQuery = personasQuery.eq('estado_persona_id', estadoFilterId)
   } else if (tipo === 'inactivos') {
     if (estadoFilterId) personasQuery = personasQuery.eq('estado_persona_id', estadoFilterId)
   }
 
-  const { data: personas } = await personasQuery
+  const { data: personas, count } = await personasQuery
+  const totalPages = Math.max(1, Math.ceil((count ?? 0) / PER_PAGE))
 
-  // Step 3: fetch memberships for persona IDs
+  // Fetch memberships for visible persona IDs
   const personaIds = (personas ?? []).map((p) => p.id)
   const membershipMap: Record<string, { grupoId: string; grupoNombre: string; redNombre?: string; liderNombre?: string }> = {}
 
   if (personaIds.length > 0) {
-    const { data: gm } = await supabase2
+    const { data: gm } = await supabase
       .from('grupo_miembros')
       .select(`
         persona_id,
@@ -265,7 +269,7 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
   }
 
   return (
-    <DetalleLayout title={title} count={personas?.length ?? 0}>
+    <DetalleLayout title={title} count={count ?? 0} page={page} totalPages={totalPages} tipo={tipo}>
       <Table>
         <TableHeader>
           <TableRow>
@@ -324,8 +328,8 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
                   {formatDate(p.fecha_registro)}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/personas/${p.id}`}>Ver →</Link>
+                  <Button variant="ghost" size="icon-sm" title="Ver" asChild>
+                    <Link href={`/personas/${p.id}`}><Eye size={15} /></Link>
                   </Button>
                 </TableCell>
               </TableRow>
@@ -342,12 +346,21 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
 function DetalleLayout({
   title,
   count,
+  page,
+  totalPages,
+  tipo,
   children,
 }: {
   title: string
   count: number
+  page: number
+  totalPages: number
+  tipo: string
   children: React.ReactNode
 }) {
+  const fromIndex = count === 0 ? 0 : (page - 1) * PER_PAGE + 1
+  const toIndex = Math.min(page * PER_PAGE, count)
+
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
@@ -375,6 +388,59 @@ function DetalleLayout({
           )}
         </CardContent>
       </Card>
+
+      {count > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-500">
+          <p className="text-xs sm:text-sm">
+            Mostrando <span className="font-medium text-gray-900">{fromIndex}</span> a{' '}
+            <span className="font-medium text-gray-900">{toIndex}</span> de{' '}
+            <span className="font-medium text-gray-900">{count}</span> registros
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs sm:text-sm mr-1">
+              Página {page} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              asChild={page > 1}
+              className="gap-1"
+            >
+              {page > 1 ? (
+                <Link href={`?tipo=${tipo}&page=${page - 1}`} className="flex items-center gap-1">
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </Link>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </span>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              asChild={page < totalPages}
+              className="gap-1"
+            >
+              {page < totalPages ? (
+                <Link href={`?tipo=${tipo}&page=${page + 1}`} className="flex items-center gap-1">
+                  Siguiente
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              ) : (
+                <span className="flex items-center gap-1">
+                  Siguiente
+                  <ChevronRight className="h-4 w-4" />
+                </span>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

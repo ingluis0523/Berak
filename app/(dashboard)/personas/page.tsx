@@ -14,12 +14,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { UserPlus, Eye, Pencil } from 'lucide-react'
+import { UserPlus, Eye, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
 import { PersonasFilters } from './personas-filters'
+import { EliminarPersonaButton } from './eliminar-persona-button'
 
 export const metadata: Metadata = { title: 'Personas' }
+export const dynamic = 'force-dynamic'
 
-const PER_PAGE = 20
+const PER_PAGE = 10
 
 interface PageProps {
   searchParams: Promise<{
@@ -182,7 +184,10 @@ export default async function PersonasPage({ searchParams }: PageProps) {
 
   const { data: personas, count } = await query
 
-  const totalPages = Math.max(1, Math.ceil((count ?? 0) / PER_PAGE))
+  const totalCount = count ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalCount / PER_PAGE))
+  const fromIndex = totalCount === 0 ? 0 : from + 1
+  const toIndex = Math.min(from + PER_PAGE, totalCount)
 
   return (
     <div className="space-y-5">
@@ -190,7 +195,7 @@ export default async function PersonasPage({ searchParams }: PageProps) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Personas</h1>
-          <p className="text-sm text-gray-500">{count ?? 0} registros en total</p>
+          <p className="text-sm text-gray-500">{totalCount} registros en total</p>
         </div>
         {currentUser?.hasPermission('crear_personas') && (
           <Button asChild>
@@ -222,7 +227,7 @@ export default async function PersonasPage({ searchParams }: PageProps) {
                 <TableHead className="hidden lg:table-cell">Líder</TableHead>
                 <TableHead className="hidden md:table-cell">Teléfono</TableHead>
                 <TableHead className="hidden sm:table-cell">Registro</TableHead>
-                <TableHead className="w-[90px] text-right">Acciones</TableHead>
+                <TableHead className="w-[120px] text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -274,19 +279,25 @@ export default async function PersonasPage({ searchParams }: PageProps) {
                       <TableCell className="hidden sm:table-cell text-gray-500 text-xs">
                         {formatDate(p.fecha_registro)}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon-sm" asChild>
+                          <Button variant="ghost" size="icon-sm" title="Ver" asChild>
                             <Link href={`/personas/${p.id}`}>
                               <Eye size={15} />
                             </Link>
                           </Button>
                           {currentUser?.hasPermission('editar_personas') && (
-                            <Button variant="ghost" size="icon-sm" asChild>
+                            <Button variant="ghost" size="icon-sm" title="Editar" asChild>
                               <Link href={`/personas/${p.id}/editar`}>
                                 <Pencil size={15} />
                               </Link>
                             </Button>
+                          )}
+                          {currentUser?.is_superadmin && (
+                            <EliminarPersonaButton
+                              personaId={p.id}
+                              personaNombre={`${p.nombres} ${p.apellidos}`}
+                            />
                           )}
                         </div>
                       </TableCell>
@@ -300,30 +311,61 @@ export default async function PersonasPage({ searchParams }: PageProps) {
       </Card>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>
-            Página {page} de {totalPages}
-          </span>
-          <div className="flex gap-2">
-            {page > 1 && (
-              <Button variant="outline" size="sm" asChild>
+      {totalCount > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-500">
+          <p className="text-xs sm:text-sm">
+            Mostrando <span className="font-medium text-gray-900">{fromIndex}</span> a{' '}
+            <span className="font-medium text-gray-900">{toIndex}</span> de{' '}
+            <span className="font-medium text-gray-900">{totalCount}</span> personas
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs sm:text-sm mr-1">
+              Página {page} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              asChild={page > 1}
+              className="gap-1"
+            >
+              {page > 1 ? (
                 <Link
-                  href={`?search=${search}&estado=${estadoFilter}&tipo=${tipoFilter}&page=${page - 1}`}
+                  href={`?search=${encodeURIComponent(search)}&estado=${encodeURIComponent(estadoFilter)}&tipo=${encodeURIComponent(tipoFilter)}&page=${page - 1}`}
+                  className="flex items-center gap-1"
                 >
+                  <ChevronLeft className="h-4 w-4" />
                   Anterior
                 </Link>
-              </Button>
-            )}
-            {page < totalPages && (
-              <Button variant="outline" size="sm" asChild>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </span>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              asChild={page < totalPages}
+              className="gap-1"
+            >
+              {page < totalPages ? (
                 <Link
-                  href={`?search=${search}&estado=${estadoFilter}&tipo=${tipoFilter}&page=${page + 1}`}
+                  href={`?search=${encodeURIComponent(search)}&estado=${encodeURIComponent(estadoFilter)}&tipo=${encodeURIComponent(tipoFilter)}&page=${page + 1}`}
+                  className="flex items-center gap-1"
                 >
                   Siguiente
+                  <ChevronRight className="h-4 w-4" />
                 </Link>
-              </Button>
-            )}
+              ) : (
+                <span className="flex items-center gap-1">
+                  Siguiente
+                  <ChevronRight className="h-4 w-4" />
+                </span>
+              )}
+            </Button>
           </div>
         </div>
       )}

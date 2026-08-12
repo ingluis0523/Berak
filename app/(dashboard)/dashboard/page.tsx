@@ -31,13 +31,13 @@ interface KpiCardProps {
 function KpiCard({ icon, label, value, trend, iconBg = 'bg-blue-50', iconColor = 'text-blue-700', href }: KpiCardProps) {
   const inner = (
     <Card className={href ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all' : ''}>
-      <CardContent className="flex items-center gap-4 p-5">
-        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor}`}>
+      <CardContent className="flex items-center gap-3 sm:gap-4 p-3.5 sm:p-5">
+        <div className={`flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor}`}>
           {icon}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide truncate">{label}</p>
-          <p className="text-2xl font-bold text-gray-900 leading-tight">{value}</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight">{value}</p>
           {trend && <p className="text-xs text-gray-400 mt-0.5">{trend}</p>}
           {href && <p className="text-xs text-blue-500 mt-0.5">Ver detalle →</p>}
         </div>
@@ -70,7 +70,6 @@ export default async function DashboardPage() {
     { data: recentPersonas },
     { data: upcomingEvents },
     { data: weeklyAttendance },
-    { data: estadoNuevoRow },
     { data: estadoInactivoRow },
   ] = await Promise.all([
     supabase.from('personas').select('*', { count: 'exact', head: true }).is('deleted_at', null),
@@ -102,20 +101,17 @@ export default async function DashboardPage() {
       .lte('fecha', now.toISOString().split('T')[0])
       .neq('estado', 'cancelado')
       .order('fecha', { ascending: true }),
-    supabase.from('estados_persona').select('id').ilike('nombre', 'nuevo').limit(1).maybeSingle(),
     supabase.from('estados_persona').select('id').ilike('nombre', '%inactiv%').limit(1).maybeSingle(),
   ])
 
-  // ── Nuevos del mes + Inactivos (depend on estado IDs) ─────────────────────
+
+  // ── Nuevos del mes + Inactivos ─────────────────────────────────────────────
   const [nuevosDelMesResult, inactivosResult] = await Promise.all([
-    estadoNuevoRow?.id
-      ? supabase
-          .from('personas')
-          .select('*', { count: 'exact', head: true })
-          .is('deleted_at', null)
-          .gte('fecha_registro', startOfMonth.toISOString())
-          .eq('estado_persona_id', estadoNuevoRow.id)
-      : Promise.resolve({ count: 0 }),
+    supabase
+      .from('personas')
+      .select('*', { count: 'exact', head: true })
+      .is('deleted_at', null)
+      .gte('fecha_registro', startOfMonth.toISOString()),
     estadoInactivoRow?.id
       ? supabase
           .from('personas')
@@ -127,6 +123,7 @@ export default async function DashboardPage() {
 
   const nuevosDelMes = nuevosDelMesResult.count ?? 0
   const inactivos = inactivosResult.count ?? 0
+
 
   // ── Compute attendance counts from join ───────────────────────────────────
   type AsistRow = { estado: string; es_visitante: boolean | null }
@@ -168,7 +165,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <KpiCard
           icon={<Users size={22} />}
           label="Total Personas"

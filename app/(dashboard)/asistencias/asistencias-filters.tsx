@@ -17,10 +17,11 @@ interface Props {
   grupos: Pick<Grupo, 'id' | 'nombre'>[]
   defaultSearch: string
   defaultGrupo: string
+  defaultEstado: string
   defaultFecha: string
 }
 
-export function AsistenciasFilters({ grupos, defaultSearch, defaultGrupo, defaultFecha }: Props) {
+export function AsistenciasFilters({ grupos, defaultSearch, defaultGrupo, defaultEstado, defaultFecha }: Props) {
   const router = useRouter()
   const pathname = usePathname()
 
@@ -30,6 +31,7 @@ export function AsistenciasFilters({ grupos, defaultSearch, defaultGrupo, defaul
       const merged = {
         search: defaultSearch,
         grupo_id: defaultGrupo,
+        estado: defaultEstado,
         fecha: defaultFecha,
         ...updates,
       }
@@ -38,12 +40,12 @@ export function AsistenciasFilters({ grupos, defaultSearch, defaultGrupo, defaul
       })
       router.push(`${pathname}?${sp.toString()}`)
     },
-    [router, pathname, defaultSearch, defaultGrupo, defaultFecha]
+    [router, pathname, defaultSearch, defaultGrupo, defaultEstado, defaultFecha]
   )
 
   return (
-    <div className="flex flex-col sm:flex-row gap-3">
-      <div className="relative flex-1">
+    <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+      <div className="relative flex-1 min-w-[200px]">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
         <Input
           className="pl-9"
@@ -57,7 +59,7 @@ export function AsistenciasFilters({ grupos, defaultSearch, defaultGrupo, defaul
         value={defaultGrupo || 'todos'}
         onValueChange={(v) => update({ grupo_id: v === 'todos' ? '' : v })}
       >
-        <SelectTrigger className="sm:w-48">
+        <SelectTrigger className="sm:w-44">
           <SelectValue placeholder="Todos los grupos" />
         </SelectTrigger>
         <SelectContent>
@@ -70,9 +72,24 @@ export function AsistenciasFilters({ grupos, defaultSearch, defaultGrupo, defaul
         </SelectContent>
       </Select>
 
+      <Select
+        value={defaultEstado || 'todos'}
+        onValueChange={(v) => update({ estado: v === 'todos' ? '' : v })}
+      >
+        <SelectTrigger className="sm:w-44">
+          <SelectValue placeholder="Todos los estados" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="todos">Todos los estados</SelectItem>
+          <SelectItem value="realizado">Realizado</SelectItem>
+          <SelectItem value="programado">Programado</SelectItem>
+          <SelectItem value="cancelado">Cancelado</SelectItem>
+        </SelectContent>
+      </Select>
+
       <Input
         type="date"
-        className="sm:w-44"
+        className="sm:w-40"
         defaultValue={defaultFecha}
         onChange={(e) => update({ fecha: e.target.value })}
       />

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { runBirthdaySends } from '@/lib/birthday-sender'
 
+import { isRoleAdmin } from '@/lib/current-user'
+
 // Manual trigger — admin only, protected by session
 export async function POST() {
   const supabase = await createClient()
@@ -11,8 +13,7 @@ export async function POST() {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  // Verify admin via rol name (same logic as getCurrentUser)
-  const ADMIN_ROLES = ['super admin', 'pastor', 'secretaria', 'administrador', 'admin']
+  // Verify admin via rol name
   const { data: usuario } = await supabase
     .from('usuarios')
     .select('rol:roles(nombre)')
@@ -21,7 +22,7 @@ export async function POST() {
 
   const rolRaw = usuario?.rol
   const rol = (Array.isArray(rolRaw) ? rolRaw[0] : rolRaw) as { nombre: string } | null
-  const isAdmin = !!(rol && ADMIN_ROLES.includes(rol.nombre.toLowerCase()))
+  const isAdmin = !!(rol && isRoleAdmin(rol.nombre))
 
   if (!isAdmin) {
     return NextResponse.json({ error: 'Solo administradores pueden ejecutar esto' }, { status: 403 })

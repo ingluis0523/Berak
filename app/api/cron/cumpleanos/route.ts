@@ -10,9 +10,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.error('[cron/cumpleanos] SUPABASE_SERVICE_ROLE_KEY is not set')
-    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY not configured' }, { status: 500 })
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY
+  if (!serviceRoleKey) {
+    console.error('[cron/cumpleanos] Service role key is not set')
+    return NextResponse.json({ error: 'Service role key not configured' }, { status: 500 })
   }
 
   try {

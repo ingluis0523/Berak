@@ -16,6 +16,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Pencil, Phone, Mail, MapPin, Calendar, User, ArrowLeft } from 'lucide-react'
+import { getCurrentUser } from '@/lib/current-user'
+import { EliminarPersonaButton } from '../eliminar-persona-button'
+
+export const dynamic = 'force-dynamic'
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 
@@ -47,6 +51,7 @@ export default async function PersonaDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
+  const currentUser = await getCurrentUser()
 
   // Main persona
   const { data: persona } = await supabase
@@ -138,13 +143,23 @@ export default async function PersonaDetailPage({
             </div>
           </div>
 
-          {/* Action */}
-          <Button asChild variant="outline" size="sm" className="shrink-0">
-            <Link href={`/personas/${id}/editar`}>
-              <Pencil size={14} />
-              Editar
-            </Link>
-          </Button>
+          {/* Actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/personas/${id}/editar`}>
+                <Pencil size={14} />
+                Editar
+              </Link>
+            </Button>
+            {currentUser?.is_superadmin && (
+              <EliminarPersonaButton
+                personaId={p.id}
+                personaNombre={`${p.nombres} ${p.apellidos}`}
+                variant="button"
+                redirectTo="/personas"
+              />
+            )}
+          </div>
         </CardContent>
       </Card>
 

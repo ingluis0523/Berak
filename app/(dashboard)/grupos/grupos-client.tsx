@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Eye, Pencil } from 'lucide-react'
+import { Plus, Search, Eye, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -45,11 +45,14 @@ const DIA_LABELS: Record<string, string> = {
   domingo: 'Domingo',
 }
 
+const PER_PAGE = 10
+
 export default function GruposClient({ grupos, redes, canCrear, canEditar }: Props) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [redFilter, setRedFilter] = useState('all')
   const [estadoFilter, setEstadoFilter] = useState('all')
+  const [page, setPage] = useState(1)
 
   const filtered = useMemo(() => {
     return grupos.filter((g) => {
@@ -65,6 +68,17 @@ export default function GruposClient({ grupos, redes, canCrear, canEditar }: Pro
       return matchSearch && matchRed && matchEstado
     })
   }, [grupos, search, redFilter, estadoFilter])
+
+  // Reset to page 1 when filters change
+  const handleSearch = (v: string) => { setSearch(v); setPage(1) }
+  const handleRed = (v: string) => { setRedFilter(v); setPage(1) }
+  const handleEstado = (v: string) => { setEstadoFilter(v); setPage(1) }
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
+  const safePage = Math.min(page, totalPages)
+  const paginated = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
+  const fromIndex = filtered.length === 0 ? 0 : (safePage - 1) * PER_PAGE + 1
+  const toIndex = Math.min(safePage * PER_PAGE, filtered.length)
 
   return (
     <div className="space-y-6">
@@ -90,10 +104,10 @@ export default function GruposClient({ grupos, redes, canCrear, canEditar }: Pro
             className="pl-9"
             placeholder="Buscar por nombre o líder..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
           />
         </div>
-        <Select value={redFilter} onValueChange={setRedFilter}>
+        <Select value={redFilter} onValueChange={handleRed}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Filtrar por red" />
           </SelectTrigger>
@@ -106,7 +120,7 @@ export default function GruposClient({ grupos, redes, canCrear, canEditar }: Pro
             ))}
           </SelectContent>
         </Select>
-        <Select value={estadoFilter} onValueChange={setEstadoFilter}>
+        <Select value={estadoFilter} onValueChange={handleEstado}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Estado" />
           </SelectTrigger>
@@ -133,14 +147,14 @@ export default function GruposClient({ grupos, redes, canCrear, canEditar }: Pro
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 ? (
+            {paginated.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-12 text-gray-400">
                   No se encontraron grupos con los filtros aplicados
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((g) => (
+              paginated.map((g) => (
                 <TableRow key={g.id} className="hover:bg-gray-50/50">
                   <TableCell>
                     <Link
@@ -205,11 +219,42 @@ export default function GruposClient({ grupos, redes, canCrear, canEditar }: Pro
         </Table>
       </div>
 
+      {/* Pagination */}
       {filtered.length > 0 && (
-        <p className="text-xs text-gray-400 text-right">
-          {filtered.length} {filtered.length === 1 ? 'grupo' : 'grupos'}
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-500">
+          <p className="text-xs sm:text-sm">
+            Mostrando <span className="font-medium text-gray-900">{fromIndex}</span> a{' '}
+            <span className="font-medium text-gray-900">{toIndex}</span> de{' '}
+            <span className="font-medium text-gray-900">{filtered.length}</span> grupos
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs sm:text-sm mr-1">
+              Página {safePage} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="gap-1"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="gap-1"
+            >
+              Siguiente
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   )
 }
+
