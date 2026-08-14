@@ -13,6 +13,7 @@ import {
 import { SeguimientoSection } from './seguimiento-section'
 import { EstadoChange } from './estado-change'
 import type { EvangelismoSeguimiento, PersonaEstadoHistorial } from '@/types'
+import stylesColors from '@/app/styles/dynamic-colors.module.css'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -246,8 +247,8 @@ export default async function EvangelismoDetallePage({ params }: PageProps) {
             </h1>
             {estadoActual && (
               <span
-                className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                style={{ backgroundColor: estadoActual.color + '22', color: estadoActual.color }}
+                className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${stylesColors.statusBgMuted}`}
+                style={{ '--custom-color': estadoActual.color } as React.CSSProperties}
               >
                 {estadoActual.nombre}
               </span>
@@ -376,8 +377,8 @@ export default async function EvangelismoDetallePage({ params }: PageProps) {
                   {timeline.map(item => (
                     <li key={item.id} className="flex items-start gap-3 px-5 py-3">
                       <div
-                        className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full border-2"
-                        style={{ borderColor: item.color, backgroundColor: item.color + '33' }}
+                        className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full border-2 ${stylesColors.statusBorder}`}
+                        style={{ '--custom-color': item.color } as React.CSSProperties}
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900">{item.title}</p>

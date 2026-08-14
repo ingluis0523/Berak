@@ -26,6 +26,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { Grupo, GrupoMiembro, Evento, Persona } from '@/types'
+import stylesColors from '@/app/styles/dynamic-colors.module.css'
+import stylesProgress from '@/app/styles/progress.module.css'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -642,11 +644,8 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                           Ingresó: {formatDate(m.fecha_ingreso)}
                           {p?.estado_persona?.nombre && (
                             <span
-                              className="ml-2 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium"
-                              style={{
-                                backgroundColor: (p.estado_persona.color ?? '#888') + '22',
-                                color: p.estado_persona.color ?? '#888',
-                              }}
+                              className={`ml-2 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${stylesColors.statusBgMuted}`}
+                              style={{ '--custom-color': p.estado_persona.color ?? '#888' } as React.CSSProperties}
                             >
                               {p.estado_persona.nombre}
                             </span>
@@ -696,10 +695,10 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                     {porcentaje != null && (
                       <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all ${
+                          className={`h-full rounded-full transition-all ${stylesProgress.progressBarFill} ${
                             porcentaje >= 70 ? 'bg-green-500' : porcentaje >= 40 ? 'bg-yellow-500' : 'bg-red-400'
                           }`}
-                          style={{ width: `${porcentaje}%` }}
+                          style={{ '--progress-width': `${porcentaje}%` } as React.CSSProperties}
                         />
                       </div>
                     )}

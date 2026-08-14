@@ -1,9 +1,7 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useMinisterioDetalle } from './hooks/use-ministerio-detalle'
 import { ArrowLeft, Pencil, UserPlus, UserMinus } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -46,120 +44,28 @@ function formatDate(iso: string) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function MinisterioDetalle({ ministerio, miembrosIniciales }: Props) {
-  const supabase = createClient()
-  const router = useRouter()
-
-  const [miembros, setMiembros] = useState<PersonaMinisterio[]>(miembrosIniciales)
-  const [searchPersona, setSearchPersona] = useState('')
-  const [personas, setPersonas] = useState<Pick<Persona, 'id' | 'nombres' | 'apellidos' | 'tipo_persona'>[]>([])
-  const [selectedPersonaId, setSelectedPersonaId] = useState<string | null>(null)
-  const [addModalOpen, setAddModalOpen] = useState(false)
-  const [addLoading, setAddLoading] = useState(false)
-  const [addError, setAddError] = useState<string | null>(null)
-  const [removeLoadingId, setRemoveLoadingId] = useState<string | null>(null)
-
-  // ── Abrir modal para agregar ─────────────────────────────────────────────
-
-  const handleOpenAddModal = useCallback(async () => {
-    setSearchPersona('')
-    setSelectedPersonaId(null)
-    setAddError(null)
-
-    const { data } = await supabase
-      .from('personas')
-      .select('id, nombres, apellidos, tipo_persona')
-      .is('deleted_at', null)
-      .order('nombres')
-    setPersonas(data ?? [])
-    setAddModalOpen(true)
-  }, [supabase])
-
-  const filteredPersonas = useMemo(() => {
-    if (!searchPersona.trim()) return personas
-    const q = searchPersona.toLowerCase()
-    return personas.filter(
-      (p) =>
-        p.nombres.toLowerCase().includes(q) ||
-        p.apellidos.toLowerCase().includes(q)
-    )
-  }, [personas, searchPersona])
-
-  // ── Agregar miembro al ministerio ────────────────────────────────────────
-
-  async function handleAddMiembro() {
-    if (!selectedPersonaId) return
-    setAddLoading(true)
-    setAddError(null)
-
-    const today = new Date().toISOString().split('T')[0]
-
-    // Insert in persona_ministerios
-    const { error: insertError } = await supabase.from('persona_ministerios').insert({
-      ministerio_id: ministerio.id,
-      persona_id: selectedPersonaId,
-      fecha_ingreso: today,
-      activo: true,
-    })
-
-    if (insertError) {
-      setAddError(insertError.message)
-      setAddLoading(false)
-      return
-    }
-
-    // Cambiar estado a 'Servidor' (sin modificar tipo_persona)
-    let { data: estadoServidor } = await supabase
-      .from('estados_persona')
-      .select('id')
-      .ilike('nombre', '%servidor%')
-      .maybeSingle()
-    if (!estadoServidor) {
-      // Create it if it doesn't exist yet
-      const { data: created } = await supabase
-        .from('estados_persona')
-        .insert({ nombre: 'Servidor', descripcion: 'Sirve activamente en la iglesia', color: 'orange', orden: 4, activo: true })
-        .select('id')
-        .single()
-      estadoServidor = created
-    }
-    if (estadoServidor?.id) {
-      await supabase
-        .from('personas')
-        .update({ estado_persona_id: estadoServidor.id })
-        .eq('id', selectedPersonaId)
-    }
-
-    // Refresh members
-    const { data: updated } = await supabase
-      .from('persona_ministerios')
-      .select('*, persona:personas(id,nombres,apellidos,tipo_persona,foto_url)')
-      .eq('ministerio_id', ministerio.id)
-      .eq('activo', true)
-      .order('fecha_ingreso', { ascending: false })
-
-    setMiembros(updated ?? [])
-    setAddLoading(false)
-    setAddModalOpen(false)
-  }
-
-  // ── Remover miembro ──────────────────────────────────────────────────────
-
-  async function handleRemoveMiembro(m: PersonaMinisterio) {
-    setRemoveLoadingId(m.id)
-    const today = new Date().toISOString().split('T')[0]
-    const { error } = await supabase
-      .from('persona_ministerios')
-      .update({ activo: false, fecha_salida: today })
-      .eq('id', m.id)
-
-    if (!error) {
-      setMiembros((prev) => prev.filter((item) => item.id !== m.id))
-    }
-    setRemoveLoadingId(null)
-  }
-
-  const nombrePersona = (p?: Pick<Persona, 'nombres' | 'apellidos'> | null) =>
-    p ? `${p.nombres} ${p.apellidos}` : '—'
+  const {
+    miembros,
+    searchPersona,
+    setSearchPersona,
+    selectedPersonaId,
+    setSelectedPersonaId,
+    addModalOpen,
+    setAddModalOpen,
+    addLoading,
+    addError,
+    removeLoadingId,
+    handleOpenAddModal,
+    filteredPersonas,
+    handleAddMiembro,
+    handleRemoveMiembro,
+    nombrePersona,
+    goBack,
+    goEdit,
+  } = useMinisterioDetalle({
+    ministerioId: ministerio.id,
+    miembrosIniciales,
+  });
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -168,7 +74,7 @@ export default function MinisterioDetalle({ ministerio, miembrosIniciales }: Pro
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => router.push('/ministerios')}
+          onClick={goBack}
           aria-label="Volver"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -190,7 +96,7 @@ export default function MinisterioDetalle({ ministerio, miembrosIniciales }: Pro
         <Button
           variant="outline"
           size="sm"
-          onClick={() => router.push(`/ministerios/${ministerio.id}/editar`)}
+          onClick={goEdit}
           className="gap-1.5 shrink-0"
         >
           <Pencil className="h-3.5 w-3.5" />

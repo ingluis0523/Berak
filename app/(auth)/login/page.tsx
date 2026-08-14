@@ -12,6 +12,7 @@ import { Logo } from '@/components/shared/logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import styles from '@/app/styles/login.module.css'
 
 const schema = z.object({
   email:    z.string().email('Correo inválido'),
@@ -57,16 +58,11 @@ function LoginForm() {
     <div className="min-h-screen flex">
       {/* Left panel – decorative */}
       <div
-        className="hidden lg:flex lg:w-[42%] flex-col items-center justify-center p-12 relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #0A2540 0%, #1B4F72 60%, #2E86C1 100%)' }}
+        className={`hidden lg:flex lg:w-[42%] flex-col items-center justify-center p-12 relative overflow-hidden ${styles.backgroundGradient}`}
       >
         {/* Pattern overlay */}
         <div
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: `radial-gradient(circle at 20% 50%, #D4AC0D 0%, transparent 50%),
-                              radial-gradient(circle at 80% 20%, #ffffff 0%, transparent 40%)`,
-          }}
+          className={`absolute inset-0 opacity-10 ${styles.patternOverlay}`}
         />
         <div className="relative z-10 flex flex-col items-center gap-8 text-center">
           <Logo variant="full" size="xl" light />

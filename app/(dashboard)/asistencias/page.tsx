@@ -145,19 +145,55 @@ export default async function AsistenciasPage({ searchParams }: PageProps) {
   const asistenciaMap: Record<string, { asistio: number; no_asistio: number; visitantes: number }> = {}
 
   if (eventoIds.length > 0) {
+    // Fetch active group members count for group events context
+    const { data: miembrosData } = await supabase
+      .from('grupo_miembros')
+      .select('grupo_id')
+      .eq('activo', true)
+
+    const groupCounts: Record<string, number> = {}
+    miembrosData?.forEach((gm) => {
+      if (gm.grupo_id) {
+        groupCounts[gm.grupo_id] = (groupCounts[gm.grupo_id] ?? 0) + 1
+      }
+    })
+
+    // Fetch total active personas registered in the platform (deleted_at is null)
+    const { count: totalPersonas } = await supabase
+      .from('personas')
+      .select('id', { count: 'exact', head: true })
+      .is('deleted_at', null)
+
+    const totalRegistrados = totalPersonas ?? 0
+
     const { data: asistencias } = await supabase
       .from('asistencias')
       .select('evento_id, estado')
       .in('evento_id', eventoIds)
 
+    // Pre-initialize map entries for page events
+    eventos.forEach((e) => {
+      asistenciaMap[e.id] = { asistio: 0, no_asistio: 0, visitantes: 0 }
+    })
+
     asistencias?.forEach((a) => {
-      if (!asistenciaMap[a.evento_id]) {
-        asistenciaMap[a.evento_id] = { asistio: 0, no_asistio: 0, visitantes: 0 }
+      const entry = asistenciaMap[a.evento_id]
+      if (entry) {
+        if (a.estado === 'asistio') entry.asistio++
+        else if (a.estado === 'visitante' || a.estado === 'primera_vez') {
+          entry.visitantes++
+        }
       }
-      if (a.estado === 'asistio') asistenciaMap[a.evento_id].asistio++
-      else if (a.estado === 'no_asistio') asistenciaMap[a.evento_id].no_asistio++
-      else if (a.estado === 'visitante' || a.estado === 'primera_vez') {
-        asistenciaMap[a.evento_id].visitantes++
+    })
+
+    // Now calculate no_asistio based on expected members
+    eventos.forEach((e) => {
+      const entry = asistenciaMap[e.id]
+      if (entry) {
+        const totalEsperados = e.grupo_id
+          ? (groupCounts[e.grupo_id as string] ?? 0)
+          : totalRegistrados
+        entry.no_asistio = Math.max(totalEsperados - entry.asistio, 0)
       }
     })
   }

@@ -15,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { ArrowLeft, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import stylesColors from '@/app/styles/dynamic-colors.module.css'
 
 export const metadata: Metadata = { title: 'Detalle Dashboard' }
 
@@ -218,7 +219,7 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
     .from('personas')
     .select('id, nombres, apellidos, tipo_persona, fecha_registro, estado_persona:estado_persona_id(id, nombre, color)', { count: 'exact' })
     .is('deleted_at', null)
-    .order('fecha_registro', { ascending: false })
+    .order('created_at', { ascending: false })
     .range(from, to)
 
   if (tipo === 'nuevos_mes') {
@@ -300,8 +301,8 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
                 <TableCell className="hidden md:table-cell">
                   {estado ? (
                     <span
-                      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                      style={{ backgroundColor: estado.color + '22', color: estado.color }}
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${stylesColors.statusBgMuted}`}
+                      style={{ '--custom-color': estado.color } as React.CSSProperties}
                     >
                       {estado.nombre}
                     </span>

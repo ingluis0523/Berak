@@ -16,6 +16,7 @@ import {
 import { ArrowLeft, Users, UsersRound, UserPlus, TrendingUp } from 'lucide-react'
 import { CrecimientoChart, AsistenciaChart } from './red-charts'
 import type { Persona } from '@/types'
+import styles from '@/app/styles/progress.module.css'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -315,8 +316,8 @@ export default async function RedReportePage({ params }: PageProps) {
                       <div className="flex items-center gap-2 justify-center">
                         <div className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden hidden sm:block">
                           <div
-                            className={`h-full rounded-full ${g.pct >= 70 ? 'bg-green-500' : g.pct >= 40 ? 'bg-yellow-500' : 'bg-red-400'}`}
-                            style={{ width: `${g.pct}%` }}
+                            className={`h-full rounded-full ${styles.progressBarFill} ${g.pct >= 70 ? 'bg-green-500' : g.pct >= 40 ? 'bg-yellow-500' : 'bg-red-400'}`}
+                            style={{ '--progress-width': `${g.pct}%` } as React.CSSProperties}
                           />
                         </div>
                         <span className={`text-sm font-semibold ${g.pct >= 70 ? 'text-green-700' : g.pct >= 40 ? 'text-yellow-600' : 'text-red-500'}`}>
@@ -382,7 +383,10 @@ export default async function RedReportePage({ params }: PageProps) {
                         <span className="text-gray-500">{count} <span className="text-gray-400">({pct}%)</span></span>
                       </div>
                       <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                        <div className="h-full rounded-full bg-blue-500" style={{ width: `${pct}%` }} />
+                        <div
+                          className={`h-full rounded-full bg-blue-500 ${styles.progressBarFill}`}
+                          style={{ '--progress-width': `${pct}%` } as React.CSSProperties}
+                        />
                       </div>
                     </div>
                   )

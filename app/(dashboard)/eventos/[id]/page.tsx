@@ -10,6 +10,7 @@ import {
   getInitials,
 } from "@/lib/utils";
 import type { Evento, Asistencia, Persona } from "@/types";
+import styles from "@/app/styles/progress.module.css";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -216,13 +217,15 @@ export default async function EventoDetallePage({
             Tomar asistencia
           </Link>
         </Button>
-        <Button variant="outline" asChild>
-          <Link href={`/eventos/${ev.id}/editar`}>
-            <Pencil size={15} />
-            Editar
-          </Link>
-        </Button>
-        {ev.estado !== "cancelado" && (
+        {ev.estado === "programado" && (
+          <Button variant="outline" asChild>
+            <Link href={`/eventos/${ev.id}/editar`}>
+              <Pencil size={15} />
+              Editar
+            </Link>
+          </Button>
+        )}
+        {ev.estado === "programado" && (
           <EventoCancelarButton eventoId={ev.id} canCancel={canCancel} />
         )}
       </div>
@@ -315,14 +318,14 @@ export default async function EventoDetallePage({
               </div>
               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all ${
+                  className={`h-full rounded-full transition-all ${styles.progressBarFill} ${
                     pct >= 70
                       ? "bg-green-500"
                       : pct >= 40
                         ? "bg-yellow-500"
                         : "bg-red-400"
                   }`}
-                  style={{ width: `${pct}%` }}
+                  style={{ "--progress-width": `${pct}%` } as React.CSSProperties}
                 />
               </div>
             </div>

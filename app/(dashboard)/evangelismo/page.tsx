@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Heart, TrendingUp, Users, UserCheck, BarChart2, Plus } from 'lucide-react'
 import { EvangelismoFilters } from './evangelismo-filters'
+import stylesColors from '@/app/styles/dynamic-colors.module.css'
 
 export const metadata: Metadata = { title: 'Evangelismo' }
 export const dynamic = 'force-dynamic'
@@ -199,8 +200,8 @@ export default async function EvangelismoPage({ searchParams }: PageProps) {
                       <TableCell className="hidden sm:table-cell">
                         {estadoP ? (
                           <span
-                            className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
-                            style={{ backgroundColor: estadoP.color + '22', color: estadoP.color }}
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${stylesColors.statusBgMuted}`}
+                            style={{ '--custom-color': estadoP.color } as React.CSSProperties}
                           >
                             {estadoP.nombre}
                           </span>

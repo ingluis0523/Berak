@@ -1,45 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useForgotPassword } from './hooks/use-forgot-password'
 import Link from 'next/link'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { Logo } from '@/components/shared/logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-const schema = z.object({
-  email: z.string().email('Correo inválido'),
-})
-type FormData = z.infer<typeof schema>
-
 export default function ForgotPasswordPage() {
-  const [sent, setSent]       = useState(false)
-  const [error, setError]     = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-  })
-
-  const onSubmit = async (data: FormData) => {
-    setLoading(true)
-    setError('')
-    const supabase = createClient()
-    const { error: authError } = await supabase.auth.resetPasswordForEmail(data.email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
-    setLoading(false)
-    if (authError) {
-      setError('No se pudo enviar el correo. Intenta de nuevo.')
-      return
-    }
-    setSent(true)
-  }
+  const {
+    sent,
+    error,
+    loading,
+    register,
+    handleSubmit,
+    errors,
+  } = useForgotPassword();
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-[#F0F4F8]">
@@ -79,7 +56,7 @@ export default function ForgotPasswordPage() {
                 </Alert>
               )}
 
-              <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                 <Input
                   label="Correo electrónico"
                   type="email"
