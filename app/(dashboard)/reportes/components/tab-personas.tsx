@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useReportePersonas } from '../hooks/use-reporte-personas'
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -29,13 +31,19 @@ import {
 import { KpiCard } from "./kpi-card";
 
 export function TabPersonas() {
+  const [pageInactivos, setPageInactivos] = useState(1);
+  const [pageNuevos, setPageNuevos] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
   const {
     loading,
+    loadingInactivos,
+    loadingNuevos,
     nuevosPorMes,
     inactivos,
     nuevosDelMes,
     kpis,
-  } = useReportePersonas();
+  } = useReportePersonas({ pageInactivos, pageNuevos, itemsPerPage: ITEMS_PER_PAGE });
 
   if (loading)
     return <div className="text-center py-24 text-gray-400">Cargando...</div>;
@@ -96,8 +104,11 @@ export function TabPersonas() {
 
       {/* Inactivos */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 py-4">
           <CardTitle>Personas inactivas (30+ días sin asistir)</CardTitle>
+          <Badge variant="secondary" className="font-semibold">
+            {kpis.inactivos} en total
+          </Badge>
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-100 overflow-y-auto">
@@ -116,7 +127,16 @@ export function TabPersonas() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {inactivos.length === 0 ? (
+                {loadingInactivos ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={3}
+                      className="text-center py-8 text-gray-400 animate-pulse"
+                    >
+                      Cargando página...
+                    </TableCell>
+                  </TableRow>
+                ) : inactivos.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={3}
@@ -143,13 +163,43 @@ export function TabPersonas() {
               </TableBody>
             </Table>
           </div>
+          {kpis.inactivos > ITEMS_PER_PAGE && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <span className="text-xs text-gray-500">
+                Página {pageInactivos} de {Math.ceil(kpis.inactivos / ITEMS_PER_PAGE)}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pageInactivos === 1 || loadingInactivos}
+                  onClick={() => setPageInactivos(p => Math.max(1, p - 1))}
+                  className="h-8 text-xs"
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pageInactivos >= Math.ceil(kpis.inactivos / ITEMS_PER_PAGE) || loadingInactivos}
+                  onClick={() => setPageInactivos(p => Math.min(Math.ceil(kpis.inactivos / ITEMS_PER_PAGE), p + 1))}
+                  className="h-8 text-xs"
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Nuevos del mes */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 py-4">
           <CardTitle>Nuevos del mes</CardTitle>
+          <Badge variant="secondary" className="font-semibold">
+            {kpis.nuevos} en total
+          </Badge>
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-100 overflow-y-auto">
@@ -168,7 +218,16 @@ export function TabPersonas() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {nuevosDelMes.length === 0 ? (
+                {loadingNuevos ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={3}
+                      className="text-center py-8 text-gray-400 animate-pulse"
+                    >
+                      Cargando página...
+                    </TableCell>
+                  </TableRow>
+                ) : nuevosDelMes.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={3}
@@ -191,6 +250,33 @@ export function TabPersonas() {
               </TableBody>
             </Table>
           </div>
+          {kpis.nuevos > ITEMS_PER_PAGE && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <span className="text-xs text-gray-500">
+                Página {pageNuevos} de {Math.ceil(kpis.nuevos / ITEMS_PER_PAGE)}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pageNuevos === 1 || loadingNuevos}
+                  onClick={() => setPageNuevos(p => Math.max(1, p - 1))}
+                  className="h-8 text-xs"
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pageNuevos >= Math.ceil(kpis.nuevos / ITEMS_PER_PAGE) || loadingNuevos}
+                  onClick={() => setPageNuevos(p => Math.min(Math.ceil(kpis.nuevos / ITEMS_PER_PAGE), p + 1))}
+                  className="h-8 text-xs"
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -100,11 +100,23 @@ export default async function PersonaDetailPage({
   const initials = getInitials(p.nombres, p.apellidos)
   const edad = calcularEdad(p.fecha_nacimiento)
   const estadoNombre = p.estado_persona?.nombre ?? ''
-  const estadoVariant = estadoNombre.toLowerCase().includes('activ')
-    ? 'success'
-    : estadoNombre.toLowerCase().includes('inactiv')
-    ? 'inactivo'
-    : 'secondary'
+  const estadoColor = p.estado_persona?.color ?? ''
+  const estadoVariant = (() => {
+    if (!estadoColor) {
+      const n = estadoNombre.toLowerCase()
+      if (n.includes('inactiv')) return 'inactivo'
+      if (n.includes('activ') || n.includes('asistente') || n.includes('miembro')) return 'success'
+      return 'secondary'
+    }
+    const c = estadoColor.toLowerCase()
+    if (c === 'red') return 'danger'
+    if (c === 'green') return 'success'
+    if (c === 'orange' || c === 'yellow') return 'warning'
+    if (c === 'blue') return 'nuevo'
+    if (c === 'purple') return 'visitante'
+    if (c === 'gray') return 'inactivo'
+    return 'secondary'
+  })()
 
   const grupoActual = (grupoMiembros as GrupoMiembro[] | null)?.find((g) => g.activo)
   const historialGrupos = (grupoMiembros as GrupoMiembro[] | null)?.filter((g) => !g.activo) ?? []

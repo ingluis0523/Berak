@@ -32,13 +32,23 @@ interface PageProps {
   }>
 }
 
-function estadoBadgeVariant(nombre: string): string {
-  const n = nombre.toLowerCase()
-  if (n.includes('activ') || n.includes('asistente') || n.includes('miembro')) return 'success'
-  if (n.includes('nuevo')) return 'nuevo'
-  if (n.includes('visita')) return 'visitante'
-  if (n.includes('servidor')) return 'servidor'
-  if (n.includes('inactiv')) return 'inactivo'
+function estadoBadgeVariant(color: string | null, nombre: string): string {
+  if (!color) {
+    const n = nombre.toLowerCase()
+    if (n.includes('inactiv')) return 'inactivo'
+    if (n.includes('activ') || n.includes('asistente') || n.includes('miembro')) return 'success'
+    if (n.includes('nuevo')) return 'nuevo'
+    if (n.includes('visita')) return 'visitante'
+    if (n.includes('servidor')) return 'servidor'
+    return 'secondary'
+  }
+  const c = color.toLowerCase()
+  if (c === 'red') return 'danger'
+  if (c === 'green') return 'success'
+  if (c === 'orange' || c === 'yellow') return 'warning'
+  if (c === 'blue') return 'nuevo'
+  if (c === 'purple') return 'visitante'
+  if (c === 'gray') return 'inactivo'
   return 'secondary'
 }
 
@@ -259,7 +269,7 @@ export default async function PersonasPage({ searchParams }: PageProps) {
                       </TableCell>
                       <TableCell>
                         {estado ? (
-                          <Badge variant={estadoBadgeVariant(estado.nombre) as never}>
+                          <Badge variant={estadoBadgeVariant(estado.color, estado.nombre) as never}>
                             {estado.nombre}
                           </Badge>
                         ) : (

@@ -26,7 +26,7 @@ export function TabMiCuenta() {
   } = useConfiguracion();
 
   return (
-    <div className="space-y-5 max-w-xl">
+    <div className="space-y-5 max-w-2xl mx-auto">
       {/* Info de cuenta */}
       <Card>
         <CardHeader>

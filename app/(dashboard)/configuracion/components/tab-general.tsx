@@ -18,7 +18,7 @@ export function TabGeneral() {
   } = useConfiguracionGeneral();
 
   return (
-    <div className="space-y-5 max-w-xl">
+    <div className="space-y-5 max-w-2xl mx-auto">
       <Card>
         <CardHeader>
           <CardTitle>Información de la iglesia</CardTitle>
