@@ -9,10 +9,20 @@ export function cn(...inputs: ClassValue[]) {
 
 // ─── Date Helpers ──────────────────────────────────────────────────────────────
 
+function parseDateString(date: string): Date {
+  if (date.includes('T') && (date.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(date))) {
+    const parsed = new Date(date)
+    if (!isNaN(parsed.getTime())) {
+      return parsed
+    }
+  }
+  return parseISO(date)
+}
+
 export function formatDate(date: string | Date | null, pattern = 'dd/MM/yyyy'): string {
   if (!date) return '—'
   try {
-    const d = typeof date === 'string' ? parseISO(date) : date
+    const d = typeof date === 'string' ? parseDateString(date) : date
     return format(d, pattern, { locale: es })
   } catch {
     return '—'
@@ -26,7 +36,7 @@ export function formatDateLong(date: string | Date | null): string {
 export function formatRelative(date: string | Date | null): string {
   if (!date) return '—'
   try {
-    const d = typeof date === 'string' ? parseISO(date) : date
+    const d = typeof date === 'string' ? parseDateString(date) : date
     return formatDistanceToNow(d, { addSuffix: true, locale: es })
   } catch {
     return '—'
