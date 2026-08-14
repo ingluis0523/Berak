@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+
 import {
   LayoutDashboard,
   Users,
@@ -21,16 +21,15 @@ import {
   Heart,
   X,
 } from "lucide-react";
+import { useSidebar } from "./hooks/use-sidebar";
+import type { ElementType } from "react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/shared/logo";
-import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 
-interface NavItem {
+export interface NavItem {
   label: string;
   href: string;
-  icon: React.ElementType;
+  icon: ElementType;
   section?: string;
   /** If set, item is only visible when canSeeModule(module) returns true */
   module?: string;
@@ -154,49 +153,19 @@ export function Sidebar({
   isMobileOpen,
   onMobileClose,
 }: SidebarProps) {
-  const canSeeModule = (module: string): boolean => {
-    if (isAdmin) return true;
-    if (!hasRole) return true; // no role assigned → unrestricted
-    if (permisos.length === 0) return true;
-    const moduleKeywords: Record<string, string[]> = {
-      personas: ["personas"],
-      redes: ["redes"],
-      grupos: ["grupos", "miembros"],
-      ministerios: ["ministerios"],
-      eventos: ["eventos"],
-      asistencias: ["asistencias"],
-      evangelismo: ["evangelismo"],
-      reportes: ["reportes"],
-      usuarios: ["usuarios"],
-      roles: ["roles"],
-    };
-    const keywords = moduleKeywords[module] ?? [module];
-    return permisos.some((p) => keywords.some((kw) => p.includes(kw)));
-  };
-  const pathname = usePathname();
-  const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
-
-  const visibleItems = NAV_ITEMS.filter((i) => {
-    if (i.adminOnly)
-      return (
-        isAdmin || !hasRole || permisos.some((p) => p.includes("configuracion"))
-      );
-    if (i.module) return canSeeModule(i.module);
-    return true;
+  const {
+    collapsed,
+    setCollapsed,
+    visibleItems,
+    isActive,
+    handleLogout,
+    sections,
+  } = useSidebar({
+    isAdmin,
+    hasRole,
+    permisos,
+    navItems: NAV_ITEMS,
   });
-
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/");
-
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  };
-
-  const sections = [...new Set(visibleItems.map((i) => i.section!))];
 
   return (
     <>

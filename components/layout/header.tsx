@@ -10,10 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
+import { useHeader } from "./hooks/use-header";
 
 interface HeaderProps {
   title?: string;
@@ -21,23 +18,13 @@ interface HeaderProps {
 }
 
 export function Header({ title, onMenuClick }: HeaderProps) {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
-  }, []);
-
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  };
-
-  const email = user?.email ?? "";
-  const initials = email.slice(0, 2).toUpperCase();
+  const {
+    user,
+    email,
+    initials,
+    handleLogout,
+    goConfiguracion,
+  } = useHeader();
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-gray-200 bg-white px-3.5 sm:px-5">
@@ -85,7 +72,7 @@ export function Header({ title, onMenuClick }: HeaderProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/configuracion")}>
+            <DropdownMenuItem onClick={goConfiguracion}>
               Configuración
             </DropdownMenuItem>
             <DropdownMenuSeparator />

@@ -28,7 +28,15 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error } = await supabase.auth.getUser()
+
+  if (error) {
+    request.cookies.getAll().forEach((cookie) => {
+      if (cookie.name.includes('supabase') || cookie.name.startsWith('sb-')) {
+        supabaseResponse.cookies.set(cookie.name, '', { maxAge: 0 })
+      }
+    })
+  }
 
   const { pathname } = request.nextUrl
 
@@ -38,7 +46,19 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return NextResponse.redirect(url)
+    const redirectResponse = NextResponse.redirect(url)
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value, {
+        path: cookie.path,
+        domain: cookie.domain,
+        maxAge: cookie.maxAge,
+        secure: cookie.secure,
+        sameSite: cookie.sameSite,
+        httpOnly: cookie.httpOnly,
+        expires: cookie.expires,
+      })
+    })
+    return redirectResponse
   }
 
   // Block inactive users: check estado in our usuarios table
@@ -54,14 +74,38 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       url.searchParams.set('error', 'inactivo')
-      return NextResponse.redirect(url)
+      const redirectResponse = NextResponse.redirect(url)
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        redirectResponse.cookies.set(cookie.name, cookie.value, {
+          path: cookie.path,
+          domain: cookie.domain,
+          maxAge: cookie.maxAge,
+          secure: cookie.secure,
+          sameSite: cookie.sameSite,
+          httpOnly: cookie.httpOnly,
+          expires: cookie.expires,
+        })
+      })
+      return redirectResponse
     }
   }
 
   if (user && isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
-    return NextResponse.redirect(url)
+    const redirectResponse = NextResponse.redirect(url)
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value, {
+        path: cookie.path,
+        domain: cookie.domain,
+        maxAge: cookie.maxAge,
+        secure: cookie.secure,
+        sameSite: cookie.sameSite,
+        httpOnly: cookie.httpOnly,
+        expires: cookie.expires,
+      })
+    })
+    return redirectResponse
   }
 
   return supabaseResponse

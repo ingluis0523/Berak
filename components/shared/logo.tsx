@@ -57,10 +57,6 @@ export function Logo({ variant = 'full', size = 'md', className, light = false }
 }
 
 function LogoFallback({ size, light }: { size: number; light: boolean }) {
-  const bg    = light ? 'rgba(255,255,255,0.15)' : '#1B4F72'
-  const fg    = '#FFFFFF'
-  const gold  = '#D4AC0D'
-
   return (
     <svg
       width={size}
@@ -68,12 +64,12 @@ function LogoFallback({ size, light }: { size: number; light: boolean }) {
       viewBox="0 0 40 40"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      style={{ borderRadius: '10px', flexShrink: 0 }}
+      className="rounded-[10px] shrink-0"
     >
-      <rect width="40" height="40" rx="10" fill={bg} />
+      <rect width="40" height="40" rx="10" className={light ? "fill-white/15" : "fill-[#1B4F72]"} />
       {/* Cross simplified */}
-      <rect x="18" y="8" width="4" height="24" rx="2" fill={fg} />
-      <rect x="10" y="15" width="20" height="4" rx="2" fill={gold} />
+      <rect x="18" y="8" width="4" height="24" rx="2" className="fill-white" />
+      <rect x="10" y="15" width="20" height="4" rx="2" className="fill-[#D4AC0D]" />
     </svg>
   )
 }
