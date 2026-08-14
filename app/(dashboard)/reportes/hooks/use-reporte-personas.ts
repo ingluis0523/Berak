@@ -7,15 +7,26 @@ import {
   subMonths,
   format,
   parseISO,
-  differenceInDays,
   isAfter,
-  subDays,
 } from "date-fns";
 import { es } from "date-fns/locale";
 
-export function useReportePersonas() {
+interface UseReportePersonasProps {
+  pageInactivos: number;
+  pageNuevos: number;
+  itemsPerPage?: number;
+}
+
+export function useReportePersonas({
+  pageInactivos,
+  pageNuevos,
+  itemsPerPage = 10,
+}: UseReportePersonasProps) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
+  const [loadingInactivos, setLoadingInactivos] = useState(false);
+  const [loadingNuevos, setLoadingNuevos] = useState(false);
+
   const [nuevosPorMes, setNuevosPorMes] = useState<
     { mes: string; count: number }[]
   >([]);
@@ -33,61 +44,43 @@ export function useReportePersonas() {
     visitantes: 0,
   });
 
+  const hoy = new Date();
+  const hace6m = subMonths(hoy, 6);
+  const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+
+  // 1. Cargar KPIs y datos del gráfico (se ejecuta una sola vez)
   useEffect(() => {
-    const load = async () => {
+    const loadKPIsAndChart = async () => {
       setLoading(true);
-      const hoy = new Date();
-      const hace6m = subMonths(hoy, 6);
-      const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
 
-      // Personas
-      const { data: personas } = await supabase
-        .from("personas")
-        .select(
-          "id, nombres, apellidos, tipo_persona, fecha_registro, estado_persona:estado_persona_id(nombre)",
-        )
-        .is("deleted_at", null);
+      // Peticiones de conteo ultra-rápidas (head: true)
+      const [
+        { count: totalCount },
+        { count: visitantesCount },
+        { count: inactivosCount },
+        { count: nuevosCount },
+        { data: personasFechas },
+      ] = await Promise.all([
+        supabase.from("personas").select("id", { count: "exact", head: true }).is("deleted_at", null),
+        supabase.from("personas").select("id", { count: "exact", head: true }).eq("tipo_persona", "visitante").is("deleted_at", null),
+        supabase.from("reporte_personas_inactivas").select("id", { count: "exact", head: true }),
+        supabase.from("reporte_personas_nuevas").select("id", { count: "exact", head: true }).gte("fecha_registro", inicioMes.toISOString()),
+        supabase.from("personas").select("fecha_registro").is("deleted_at", null).gte("fecha_registro", hace6m.toISOString()),
+      ]);
 
-      // Asistencias recientes
-      const { data: asistencias } = await supabase
-        .from("asistencias")
-        .select("persona_id, created_at, evento:evento_id(nombre, fecha)")
-        .eq("estado", "asistio")
-        .gte("created_at", hace6m.toISOString());
+      const total = totalCount ?? 0;
+      const visitantes = visitantesCount ?? 0;
+      const totalInactivos = inactivosCount ?? 0;
+      const nuevos = nuevosCount ?? 0;
+      const activos = Math.max(0, total - visitantes - totalInactivos);
 
-      // Grupos de miembros
-      const { data: gruposMiembros } = await supabase
-        .from("grupo_miembros")
-        .select("persona_id, grupo:grupo_id(nombre)")
-        .eq("activo", true);
-
-      const lastAsistencia = new Map<
-        string,
-        { fecha: string; evento: string }
-      >();
-      for (const a of asistencias ?? []) {
-        const prev = lastAsistencia.get(a.persona_id);
-        const evRaw = a.evento as unknown;
-        const ev = (Array.isArray(evRaw) ? evRaw[0] : evRaw) as {
-          nombre: string;
-          fecha: string;
-        } | null;
-        if (!prev || (ev && ev.fecha > prev.fecha)) {
-          lastAsistencia.set(a.persona_id, {
-            fecha: ev?.fecha ?? a.created_at,
-            evento: ev?.nombre ?? "?",
-          });
-        }
-      }
-
-      const grupoByPersona = new Map<string, string>();
-      for (const gm of gruposMiembros ?? []) {
-        const gRaw = gm.grupo as unknown;
-        const g = (Array.isArray(gRaw) ? gRaw[0] : gRaw) as {
-          nombre: string;
-        } | null;
-        if (g) grupoByPersona.set(gm.persona_id, g.nombre);
-      }
+      setKpis({
+        total,
+        activos,
+        inactivos: totalInactivos,
+        nuevos,
+        visitantes,
+      });
 
       // Nuevos por mes (últimos 6 meses)
       const mesMap = new Map<string, number>();
@@ -95,7 +88,7 @@ export function useReportePersonas() {
         const d = subMonths(hoy, i);
         mesMap.set(format(d, "MMM yy", { locale: es }), 0);
       }
-      for (const p of personas ?? []) {
+      for (const p of personasFechas ?? []) {
         const d = parseISO(p.fecha_registro);
         if (isAfter(d, hace6m)) {
           const k = format(d, "MMM yy", { locale: es });
@@ -106,62 +99,73 @@ export function useReportePersonas() {
         Array.from(mesMap.entries()).map(([mes, count]) => ({ mes, count })),
       );
 
-      // Inactivos (sin asistencia en 30+ días) y Activos (asistencia en <30 días)
-      const inactivosList: typeof inactivos = [];
-      let activosCount = 0;
-      for (const p of personas ?? []) {
-        if (p.tipo_persona === "visitante") continue;
-        const last = lastAsistencia.get(p.id);
-        const dias = last
-          ? differenceInDays(hoy, parseISO(last.fecha))
-          : differenceInDays(hoy, parseISO(p.fecha_registro));
-        if (dias >= 30) {
-          inactivosList.push({
-            id: p.id,
-            nombre: getNombreCompleto(p.nombres, p.apellidos),
-            ultimoEvento: last
-              ? `${last.evento} (${formatDate(last.fecha)})`
-              : "Sin registros",
-            dias,
-          });
-        } else {
-          activosCount++;
-        }
-      }
-      setInactivos(inactivosList.sort((a, b) => b.dias - a.dias).slice(0, 50));
-
-      // Nuevos del mes
-      const nuevosMes = (personas ?? [])
-        .filter((p) => isAfter(parseISO(p.fecha_registro), inicioMes))
-        .map((p) => ({
-          id: p.id,
-          nombre: getNombreCompleto(p.nombres, p.apellidos),
-          fecha: formatDate(p.fecha_registro),
-          grupo: grupoByPersona.get(p.id) ?? "—",
-        }));
-      setNuevosDelMes(nuevosMes);
-
-      // KPIs
-      const totalPersonas = (personas ?? []).length;
-      const visitantesCount = (personas ?? []).filter(
-        (p) => p.tipo_persona === "visitante",
-      ).length;
-
-      setKpis({
-        total: totalPersonas,
-        activos: activosCount,
-        inactivos: inactivosList.length,
-        nuevos: nuevosMes.length,
-        visitantes: visitantesCount,
-      });
-
       setLoading(false);
     };
-    load();
+
+    loadKPIsAndChart();
   }, [supabase]);
+
+  // 2. Cargar página de personas inactivas desde el Servidor
+  useEffect(() => {
+    const loadInactivosPage = async () => {
+      setLoadingInactivos(true);
+      const from = (pageInactivos - 1) * itemsPerPage;
+      const to = from + itemsPerPage - 1;
+
+      const { data } = await supabase
+        .from("reporte_personas_inactivas")
+        .select("id, nombres, apellidos, ultimo_evento_nombre, ultimo_evento_fecha, dias_sin_asistir")
+        .order("dias_sin_asistir", { ascending: false })
+        .range(from, to);
+
+      const mapped = (data ?? []).map((p) => ({
+        id: p.id,
+        nombre: getNombreCompleto(p.nombres, p.apellidos),
+        ultimoEvento: p.ultimo_evento_nombre
+          ? `${p.ultimo_evento_nombre} (${formatDate(p.ultimo_evento_fecha)})`
+          : "Sin registros",
+        dias: p.dias_sin_asistir,
+      }));
+
+      setInactivos(mapped);
+      setLoadingInactivos(false);
+    };
+
+    loadInactivosPage();
+  }, [supabase, pageInactivos, itemsPerPage]);
+
+  // 3. Cargar página de personas nuevas desde el Servidor
+  useEffect(() => {
+    const loadNuevosPage = async () => {
+      setLoadingNuevos(true);
+      const from = (pageNuevos - 1) * itemsPerPage;
+      const to = from + itemsPerPage - 1;
+
+      const { data } = await supabase
+        .from("reporte_personas_nuevas")
+        .select("id, nombres, apellidos, fecha_registro, grupo_nombre")
+        .gte("fecha_registro", inicioMes.toISOString())
+        .order("fecha_registro", { ascending: false })
+        .range(from, to);
+
+      const mapped = (data ?? []).map((p) => ({
+        id: p.id,
+        nombre: getNombreCompleto(p.nombres, p.apellidos),
+        fecha: formatDate(p.fecha_registro),
+        grupo: p.grupo_nombre ?? "—",
+      }));
+
+      setNuevosDelMes(mapped);
+      setLoadingNuevos(false);
+    };
+
+    loadNuevosPage();
+  }, [supabase, pageNuevos, itemsPerPage]);
 
   return {
     loading,
+    loadingInactivos,
+    loadingNuevos,
     nuevosPorMes,
     inactivos,
     nuevosDelMes,

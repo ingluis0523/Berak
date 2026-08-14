@@ -198,7 +198,7 @@ export function TabAutomatizaciones() {
   };
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4 w-full">
       <div className="flex justify-between items-center">
         <p className="text-sm text-gray-500">
           Reglas que cambian automáticamente el estado de las personas.
@@ -223,8 +223,14 @@ export function TabAutomatizaciones() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium text-sm text-gray-900">
-                      {r.nombre}
+                    <p className="font-medium text-sm text-gray-900 flex items-center gap-1.5">
+                      <span>{r.nombre}</span>
+                      {!r.nombre.includes("→") && r.estado_resultado && (
+                        <>
+                          <span className="text-gray-400 font-normal">→</span>
+                          <span className="text-gray-600 font-normal">{(r.estado_resultado as EstadoPersona).nombre}</span>
+                        </>
+                      )}
                     </p>
                     <Badge
                       variant={r.activo ? "success" : "secondary"}

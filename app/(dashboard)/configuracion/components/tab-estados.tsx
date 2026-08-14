@@ -171,7 +171,7 @@ export function TabEstados() {
   } = useConfiguracionEstados();
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-4 w-full">
       <div className="flex justify-between items-center">
         <p className="text-sm text-gray-500">
           Configura los estados que puede tener una persona en la iglesia.
