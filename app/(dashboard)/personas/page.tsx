@@ -157,7 +157,7 @@ export default async function PersonasPage({ searchParams }: PageProps) {
       { count: 'exact' }
     )
     .is('deleted_at', null)
-    .order('fecha_registro', { ascending: false })
+    .order('created_at', { ascending: false })
     .range(from, to)
 
   if (search) {

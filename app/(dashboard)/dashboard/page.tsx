@@ -84,7 +84,7 @@ export default async function DashboardPage() {
       .from('personas')
       .select('id, nombres, apellidos, tipo_persona, fecha_registro, estado_persona:estado_persona_id(nombre, color)')
       .is('deleted_at', null)
-      .order('fecha_registro', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(8),
     // Upcoming events this week
     supabase

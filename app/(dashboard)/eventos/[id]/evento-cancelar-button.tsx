@@ -1,8 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { useCancelarEvento } from '../hooks/use-cancelar-evento'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -15,23 +13,9 @@ import {
 import { XCircle } from 'lucide-react'
 
 export function EventoCancelarButton({ eventoId, canCancel = true }: { eventoId: string; canCancel?: boolean }) {
-  const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
-  const supabase = createClient()
+  const { open, setOpen, loading, handleCancelar } = useCancelarEvento({ eventoId });
 
-  async function handleCancelar() {
-    setLoading(true)
-    await supabase
-      .from('eventos')
-      .update({ estado: 'cancelado' })
-      .eq('id', eventoId)
-    setLoading(false)
-    setOpen(false)
-    router.refresh()
-  }
-
-  if (!canCancel) return null
+  if (!canCancel) return null;
 
   return (
     <>

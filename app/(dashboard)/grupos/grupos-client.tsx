@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useGrupos } from './hooks/use-grupos'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, Eye, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -49,36 +49,22 @@ const PER_PAGE = 10
 
 export default function GruposClient({ grupos, redes, canCrear, canEditar }: Props) {
   const router = useRouter()
-  const [search, setSearch] = useState('')
-  const [redFilter, setRedFilter] = useState('all')
-  const [estadoFilter, setEstadoFilter] = useState('all')
-  const [page, setPage] = useState(1)
-
-  const filtered = useMemo(() => {
-    return grupos.filter((g) => {
-      const matchSearch =
-        !search ||
-        g.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        (g.lider && `${g.lider.nombres} ${g.lider.apellidos}`.toLowerCase().includes(search.toLowerCase()))
-      const matchRed = redFilter === 'all' || g.red_id === redFilter
-      const matchEstado =
-        estadoFilter === 'all' ||
-        (estadoFilter === 'activo' && g.estado) ||
-        (estadoFilter === 'inactivo' && !g.estado)
-      return matchSearch && matchRed && matchEstado
-    })
-  }, [grupos, search, redFilter, estadoFilter])
-
-  // Reset to page 1 when filters change
-  const handleSearch = (v: string) => { setSearch(v); setPage(1) }
-  const handleRed = (v: string) => { setRedFilter(v); setPage(1) }
-  const handleEstado = (v: string) => { setEstadoFilter(v); setPage(1) }
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const safePage = Math.min(page, totalPages)
-  const paginated = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
-  const fromIndex = filtered.length === 0 ? 0 : (safePage - 1) * PER_PAGE + 1
-  const toIndex = Math.min(safePage * PER_PAGE, filtered.length)
+  const {
+    search,
+    redFilter,
+    estadoFilter,
+    page,
+    setPage,
+    filtered,
+    handleSearch,
+    handleRed,
+    handleEstado,
+    totalPages,
+    safePage,
+    paginated,
+    fromIndex,
+    toIndex,
+  } = useGrupos({ grupos, perPage: PER_PAGE });
 
   return (
     <div className="space-y-6">

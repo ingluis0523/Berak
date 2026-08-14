@@ -10,6 +10,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import stylesColors from '@/app/styles/dynamic-colors.module.css'
+import stylesProgress from '@/app/styles/progress.module.css'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
@@ -225,8 +227,11 @@ export default function EvangelismoEstadisticasPage() {
                           </div>
                           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                             <div
-                              className="h-full rounded-full transition-all"
-                              style={{ width: `${pct}%`, backgroundColor: e.color }}
+                              className={`h-full rounded-full transition-all ${stylesProgress.progressBarFill} ${stylesColors.activeBgBorder}`}
+                              style={{
+                                '--progress-width': `${pct}%`,
+                                '--custom-color': e.color,
+                              } as React.CSSProperties}
                             />
                           </div>
                         </div>

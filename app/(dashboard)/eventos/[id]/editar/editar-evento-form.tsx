@@ -1,9 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { useEditarEvento } from '../../hooks/use-editar-evento'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -30,46 +28,26 @@ interface Props {
 }
 
 export function EditarEventoForm({ evento, grupos }: Props) {
-  const router = useRouter()
-  const supabase = createClient()
-
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const [nombre, setNombre] = useState(evento.nombre)
-  const [grupoId, setGrupoId] = useState(evento.grupo_id ?? '')
-  const [fecha, setFecha] = useState(evento.fecha)
-  const [horaInicio, setHoraInicio] = useState(evento.hora_inicio ?? '')
-  const [horaFin, setHoraFin] = useState(evento.hora_fin ?? '')
-  const [estado, setEstado] = useState<EstadoEvento>(evento.estado)
-  const [descripcion, setDescripcion] = useState(evento.descripcion ?? '')
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    if (!nombre.trim()) { setError('El nombre es obligatorio.'); return }
-    if (!fecha) { setError('La fecha es obligatoria.'); return }
-
-    setSaving(true)
-    const { error: updateError } = await supabase
-      .from('eventos')
-      .update({
-        nombre: nombre.trim(),
-        grupo_id: grupoId || null,
-        fecha,
-        hora_inicio: horaInicio || null,
-        hora_fin: horaFin || null,
-        estado,
-        descripcion: descripcion.trim() || null,
-      })
-      .eq('id', evento.id)
-
-    setSaving(false)
-    if (updateError) { setError(updateError.message); return }
-
-    router.push(`/eventos/${evento.id}`)
-    router.refresh()
-  }
+  const {
+    saving,
+    error,
+    nombre,
+    setNombre,
+    grupoId,
+    setGrupoId,
+    fecha,
+    setFecha,
+    horaInicio,
+    setHoraInicio,
+    horaFin,
+    setHoraFin,
+    estado,
+    setEstado,
+    descripcion,
+    setDescripcion,
+    handleSubmit,
+    goBack,
+  } = useEditarEvento({ evento });
 
   return (
     <div className="space-y-6">
@@ -78,7 +56,7 @@ export function EditarEventoForm({ evento, grupos }: Props) {
           variant="ghost"
           size="icon"
           type="button"
-          onClick={() => router.push(`/eventos/${evento.id}`)}
+          onClick={goBack}
           aria-label="Volver"
         >
           <ArrowLeft className="h-4 w-4" />

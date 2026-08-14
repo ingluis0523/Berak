@@ -1,49 +1,24 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { useResetPassword } from './hooks/use-reset-password'
 import { Lock, Eye, EyeOff } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { Logo } from '@/components/shared/logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-const schema = z.object({
-  password:        z.string().min(8, 'Mínimo 8 caracteres'),
-  confirmPassword: z.string(),
-}).refine(d => d.password === d.confirmPassword, {
-  message: 'Las contraseñas no coinciden',
-  path:    ['confirmPassword'],
-})
-type FormData = z.infer<typeof schema>
-
 export default function ResetPasswordPage() {
-  const router    = useRouter()
-  const [show1, setShow1]     = useState(false)
-  const [show2, setShow2]     = useState(false)
-  const [error, setError]     = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-  })
-
-  const onSubmit = async (data: FormData) => {
-    setLoading(true)
-    setError('')
-    const supabase = createClient()
-    const { error: authError } = await supabase.auth.updateUser({ password: data.password })
-    setLoading(false)
-    if (authError) {
-      setError('No se pudo actualizar la contraseña. Intenta de nuevo.')
-      return
-    }
-    router.push('/login')
-  }
+  const {
+    show1,
+    setShow1,
+    show2,
+    setShow2,
+    error,
+    loading,
+    register,
+    handleSubmit,
+    errors,
+  } = useResetPassword();
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-[#F0F4F8]">
@@ -63,7 +38,7 @@ export default function ResetPasswordPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <Input
               label="Nueva contraseña"
               type={show1 ? 'text' : 'password'}

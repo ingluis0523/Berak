@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import stylesColors from '@/app/styles/dynamic-colors.module.css'
 
 interface Props {
   personaId: string
@@ -51,15 +52,15 @@ export function EstadoChange({ personaId, currentEstadoId, estados }: Props) {
             disabled={isLoading || saving !== null}
             className={`w-full text-left rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
               isActive
-                ? 'border-transparent text-white'
+                ? `border-transparent text-white ${stylesColors.activeBgBorder}`
                 : 'border-gray-200 text-gray-700 hover:border-gray-300 bg-white'
             } ${isLoading ? 'opacity-60 cursor-wait' : ''}`}
-            style={isActive ? { backgroundColor: e.color, borderColor: e.color } : undefined}
+            style={isActive ? ({ '--custom-color': e.color } as React.CSSProperties) : undefined}
           >
             <span className="flex items-center gap-2">
               <span
-                className="h-2 w-2 rounded-full shrink-0"
-                style={{ backgroundColor: isActive ? 'white' : e.color }}
+                className={`h-2 w-2 rounded-full shrink-0 ${isActive ? 'bg-white' : stylesColors.activeBgBorder}`}
+                style={!isActive ? ({ '--custom-color': e.color } as React.CSSProperties) : undefined}
               />
               {e.nombre}
               {isActive && <span className="ml-auto text-xs opacity-75">Actual</span>}

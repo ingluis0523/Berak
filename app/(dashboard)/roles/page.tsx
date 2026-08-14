@@ -254,19 +254,8 @@ export default function RolesPage() {
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
 
-  // Seed de permisos si no existen
-  const seedPermisos = async () => {
-    const { data: existing } = await supabase.from('permisos').select('nombre')
-    const existingNames = new Set((existing ?? []).map((p: { nombre: string }) => p.nombre))
-    const toInsert = PERMISOS_SEED.filter(p => !existingNames.has(p.nombre))
-    if (toInsert.length > 0) {
-      await supabase.from('permisos').insert(toInsert)
-    }
-  }
-
   const loadData = useCallback(async () => {
     setLoading(true)
-    await seedPermisos()
 
     const [{ data: rolesData }, { data: permisosData }, { data: usersData }] = await Promise.all([
       supabase.from('roles').select('*').order('nombre'),
