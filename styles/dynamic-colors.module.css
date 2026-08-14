@@ -1,0 +1,19 @@
+.statusBgMuted {
+  color: var(--custom-color);
+  background-color: color-mix(in srgb, var(--custom-color) 13%, transparent);
+}
+
+.statusBorder {
+  border-color: var(--custom-color);
+  background-color: color-mix(in srgb, var(--custom-color) 20%, transparent);
+}
+
+.activeBgBorder {
+  background-color: var(--custom-color);
+  border-color: var(--custom-color);
+}
+
+.activeColorMutedBg {
+  background-color: color-mix(in srgb, var(--custom-color) 13%, transparent);
+  color: var(--custom-color);
+}
