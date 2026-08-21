@@ -2,7 +2,7 @@
 
 import { useEditarPersona } from '../../hooks/use-editar-persona'
 import { TIPO_OPTIONS } from '../../hooks/use-nueva-persona'
-import type { Persona, SelectOption } from '@/types'
+import type { Persona, SelectOption, TipoPersona } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -31,6 +31,7 @@ export function EditarPersonaForm({ persona, estados, lideres }: Props) {
     loading,
     register,
     handleSubmit,
+    setValue,
     errors,
     onSubmit,
     watch,

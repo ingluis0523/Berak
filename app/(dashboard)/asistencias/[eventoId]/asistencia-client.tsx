@@ -40,6 +40,9 @@ interface Props {
   miembrosIniciales: (GrupoMiembro & { persona: Persona })[]
   asistenciasIniciales: (Asistencia & { persona: Persona | null })[]
   usuarioId: string | null
+  hasFullAccess: boolean
+  scopedPersonaIds: string[]
+  permisos: string[]
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -50,7 +53,16 @@ export function AsistenciaClient({
   miembrosIniciales,
   asistenciasIniciales,
   usuarioId,
+  hasFullAccess,
+  scopedPersonaIds,
+  permisos,
 }: Props) {
+  const canModify = useMemo(() => {
+    if (hasFullAccess) return true;
+    if (permisos.includes('editar_asistencias') || permisos.includes('asistencias')) return true;
+    if (permisos.includes('registrar_asistencias') && evento.estado !== 'realizado') return true;
+    return false;
+  }, [hasFullAccess, permisos, evento.estado]);
   const {
     rows,
     setRows,
@@ -80,6 +92,8 @@ export function AsistenciaClient({
     miembrosIniciales,
     asistenciasIniciales,
     usuarioId,
+    hasFullAccess,
+    scopedPersonaIds,
   });
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -138,7 +152,7 @@ export function AsistenciaClient({
             size="sm"
             loading={finalizing}
             onClick={handleFinalizar}
-            disabled={evento.estado === 'realizado'}
+            disabled={evento.estado === 'realizado' || !canModify}
             className="gap-1.5"
           >
             <ClipboardCheck size={14} />
@@ -159,6 +173,7 @@ export function AsistenciaClient({
               className="pl-9"
               placeholder="Buscar persona por nombre..."
               value={searchPersona}
+              disabled={!canModify}
               onChange={(e) => handleSearchPersona(e.target.value)}
             />
           </div>
@@ -174,8 +189,9 @@ export function AsistenciaClient({
                 <button
                   key={p.id}
                   type="button"
+                  disabled={!canModify}
                   onClick={() => addPersonaFromSearch(p)}
-                  className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 transition-colors"
+                  className="w-full text-left flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Avatar className="h-7 w-7 shrink-0">
                     <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
@@ -209,6 +225,7 @@ export function AsistenciaClient({
                 key={row.personaId}
                 row={row}
                 onToggle={() => toggleAsistencia(row.personaId)}
+                disabled={!canModify}
               />
             ))}
           </ul>
@@ -262,6 +279,7 @@ export function AsistenciaClient({
           <Button
             size="sm"
             variant="outline"
+            disabled={!canModify}
             onClick={() => { setVisitanteModal(true); setVisitanteError(null) }}
             className="gap-1.5"
           >
@@ -369,9 +387,11 @@ export function AsistenciaClient({
 function MiembroItem({
   row,
   onToggle,
+  disabled = false,
 }: {
   row: MiembroRow
   onToggle: () => void
+  disabled?: boolean
 }) {
   const asistio = row.estado === 'asistio'
   const noAsistio = row.estado === 'no_asistio'
@@ -379,21 +399,22 @@ function MiembroItem({
 
   return (
     <li
-      className={`flex items-center gap-3 px-5 py-3 transition-colors cursor-pointer select-none ${
-        asistio
-          ? 'bg-green-50 hover:bg-green-100'
-          : noAsistio
-          ? 'hover:bg-gray-50'
-          : 'hover:bg-gray-50'
+      className={`flex items-center gap-3 px-5 py-3 transition-colors select-none ${
+        disabled
+          ? ''
+          : asistio
+          ? 'bg-green-50 hover:bg-green-100 cursor-pointer'
+          : 'hover:bg-gray-50 cursor-pointer'
       }`}
-      onClick={onToggle}
+      onClick={disabled ? undefined : onToggle}
     >
       {/* Checkbox visual */}
       <button
         type="button"
-        className="shrink-0 focus:outline-none"
+        disabled={disabled}
+        className={`shrink-0 focus:outline-none ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         aria-label={asistio ? 'Marcar como ausente' : 'Marcar como asistente'}
-        onClick={(e) => { e.stopPropagation(); onToggle() }}
+        onClick={(e) => { e.stopPropagation(); if (!disabled) onToggle() }}
       >
         {row.saving ? (
           <Loader2 className="h-6 w-6 text-blue-400 animate-spin" />

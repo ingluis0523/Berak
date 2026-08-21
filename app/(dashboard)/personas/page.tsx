@@ -70,86 +70,10 @@ export default async function PersonasPage({ searchParams }: PageProps) {
   const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
   const hasRole = !!currentUser?.rol
   let visiblePersonaIds: string[] | null = null
-  if (!hasFullAccess) {
-    if (!hasRole) {
-      // No role assigned (bootstrap) → unrestricted, see everything
-      visiblePersonaIds = null
-    } else if (currentUser?.is_encargado_red && currentUser?.red_id) {
-      // Encargado de red → all personas in grupos of their red (members + líderes/sublíderes/anfitriones)
-      const { data: gruposEnRed } = await supabase
-        .from('grupos')
-        .select('id, lider_id, sublider_id, anfitrion_id')
-        .eq('red_id', currentUser.red_id)
-        .is('deleted_at', null)
-      const grupoIds = (gruposEnRed ?? []).map((g) => g.id)
-      const roleIds = (gruposEnRed ?? [])
-        .flatMap((g) => [g.lider_id, g.sublider_id, g.anfitrion_id])
-        .filter(Boolean) as string[]
-      let memberIds: string[] = []
-      if (grupoIds.length > 0) {
-        const { data: miembroRows } = await supabase
-          .from('grupo_miembros')
-          .select('persona_id')
-          .in('grupo_id', grupoIds)
-          .eq('activo', true)
-        memberIds = (miembroRows ?? []).map((m) => m.persona_id as string)
-      }
-      visiblePersonaIds = [...new Set([...memberIds, ...roleIds])]
-    } else {
-      const liderGrupoIds = currentUser?.lider_grupo_ids ?? []
-      if (liderGrupoIds.length > 0) {
-        // User leads at least one group → group members + directly-assigned personas
-        const { data: miembroRows } = await supabase
-          .from('grupo_miembros')
-          .select('persona_id')
-          .in('grupo_id', liderGrupoIds)
-          .eq('activo', true)
-        const groupMemberIds = (miembroRows ?? []).map((m) => m.persona_id as string)
-
-        let directIds: string[] = []
-        if (currentUser?.persona_id) {
-          const { data: directRows } = await supabase
-            .from('personas')
-            .select('id')
-            .eq('lider_id', currentUser.persona_id)
-            .is('deleted_at', null)
-          directIds = (directRows ?? []).map((p) => p.id as string)
-          directIds.push(currentUser.persona_id)
-        }
-        visiblePersonaIds = [...new Set([...groupMemberIds, ...directIds])]
-      } else if (currentUser?.red_id) {
-        // No groups led but has a red → show all members in the red
-        const { data: gruposEnRed } = await supabase
-          .from('grupos')
-          .select('id')
-          .eq('red_id', currentUser.red_id)
-          .is('deleted_at', null)
-        const grupoIds = (gruposEnRed ?? []).map((g) => g.id)
-        if (grupoIds.length > 0) {
-          const { data: miembroRows } = await supabase
-            .from('grupo_miembros')
-            .select('persona_id')
-            .in('grupo_id', grupoIds)
-            .eq('activo', true)
-          visiblePersonaIds = [...new Set((miembroRows ?? []).map((m) => m.persona_id as string))]
-        } else {
-          visiblePersonaIds = []
-        }
-      } else if (currentUser?.persona_id) {
-        // Has role but no red/group assignment → show only directly-assigned personas + themselves
-        const { data: directRows } = await supabase
-          .from('personas')
-          .select('id')
-          .eq('lider_id', currentUser.persona_id)
-          .is('deleted_at', null)
-        const ids = (directRows ?? []).map((p) => p.id as string)
-        ids.push(currentUser.persona_id)
-        visiblePersonaIds = [...new Set(ids)]
-      } else {
-        // Has role but no persona linked → user created directly in Supabase (admin-type)
-        visiblePersonaIds = null
-      }
-    }
+  if (!hasFullAccess && hasRole) {
+    const { resolveUserScope } = await import('@/lib/resolve-user-scope')
+    const { scopedPersonaIds } = await resolveUserScope(supabase, currentUser)
+    visiblePersonaIds = scopedPersonaIds
   }
 
   // Load estado options for filter
@@ -185,7 +109,7 @@ export default async function PersonasPage({ searchParams }: PageProps) {
   // Apply red-scoping filter
   if (visiblePersonaIds !== null) {
     if (visiblePersonaIds.length > 0) {
-      query = query.in('id', visiblePersonaIds)
+      query = query.or(`id.in.(${visiblePersonaIds.join(',')}),lider_id.in.(${visiblePersonaIds.join(',')})`)
     } else {
       // User is in a red with no grupos → empty result
       query = query.in('id', ['00000000-0000-0000-0000-000000000000'])

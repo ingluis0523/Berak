@@ -8,8 +8,10 @@ import type { User } from "@supabase/supabase-js";
 export function useHeader() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
   }, []);
@@ -36,5 +38,6 @@ export function useHeader() {
     initials,
     handleLogout,
     goConfiguracion,
+    mounted,
   };
 }

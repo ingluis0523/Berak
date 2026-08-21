@@ -4,9 +4,11 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getNombreCompleto } from "@/lib/utils";
 import { subDays, subMonths, parseISO, isAfter } from "date-fns";
+import { useReporteScope } from "./use-reporte-scope";
 
 export function useReporteLideres() {
   const supabase = createClient();
+  const { loading: loadingScope, hasFullAccess, myGroupIds, scopedPersonaIds } = useReporteScope();
   const [loading, setLoading] = useState(true);
   const [lideres, setLideres] = useState<
     {
@@ -20,6 +22,7 @@ export function useReporteLideres() {
   >([]);
 
   useEffect(() => {
+    if (loadingScope) return;
     const load = async () => {
       setLoading(true);
       const hoy = new Date();
@@ -39,10 +42,18 @@ export function useReporteLideres() {
       }
 
       // Grupos de cada líder
-      const { data: gruposData } = await supabase
+      let gruposQuery = supabase
         .from("grupos")
         .select("id, lider_id, sublider_id, nombre")
         .eq("estado", true);
+      if (!hasFullAccess) {
+        if (myGroupIds.length > 0) {
+          gruposQuery = gruposQuery.in("id", myGroupIds);
+        } else {
+          gruposQuery = gruposQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+        }
+      }
+      const { data: gruposData } = await gruposQuery;
 
       const idsLideresGrupo = new Set<string>();
       const grupoByLider = new Map<string, string>();
@@ -68,10 +79,14 @@ export function useReporteLideres() {
       }
 
       // Líderes y sublíderes en personas o asignados a grupos
-      const { data: personasData } = await supabase
+      let personasQuery = supabase
         .from("personas")
         .select("id, nombres, apellidos, tipo_persona")
         .is("deleted_at", null);
+      if (!hasFullAccess) {
+        personasQuery = personasQuery.or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`);
+      }
+      const { data: personasData } = await personasQuery;
 
       const listaLideres = (personasData ?? []).filter(
         (p) =>
@@ -81,11 +96,19 @@ export function useReporteLideres() {
       );
 
       // Eventos del último mes
-      const { data: eventosData } = await supabase
+      let eventosQuery = supabase
         .from("eventos")
         .select("id, grupo_id")
         .gte("fecha", hace1m.toISOString().split("T")[0])
         .neq("estado", "cancelado");
+      if (!hasFullAccess) {
+        if (myGroupIds.length > 0) {
+          eventosQuery = eventosQuery.or(`grupo_id.is.null,grupo_id.in.(${myGroupIds.join(",")})`);
+        } else {
+          eventosQuery = eventosQuery.is("grupo_id", null);
+        }
+      }
+      const { data: eventosData } = await eventosQuery;
 
       const totalEventosGenerales = (eventosData ?? []).length;
 
@@ -155,7 +178,7 @@ export function useReporteLideres() {
       setLoading(false);
     };
     load();
-  }, [supabase]);
+  }, [supabase, loadingScope, hasFullAccess, myGroupIds, scopedPersonaIds]);
 
   const top10 = lideres.slice(0, 10);
 

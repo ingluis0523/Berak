@@ -5,22 +5,29 @@ import { createClient } from "@/lib/supabase/client";
 import { formatDate, getNombreCompleto } from "@/lib/utils";
 import { format, subDays } from "date-fns";
 import { exportCSV, nrWeekInfo } from "../components/helpers";
+import { useReporteScope } from "./use-reporte-scope";
 
 export function useReporteExportar() {
   const supabase = createClient();
+  const { loading: loadingScope, hasFullAccess, myGroupIds, scopedPersonaIds } = useReporteScope();
   const [loading, setLoading] = useState<string | null>(null);
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
 
   const handleExportPersonas = async () => {
+    if (loadingScope) return;
     setLoading("personas");
-    const { data } = await supabase
+    let query = supabase
       .from("personas")
       .select(
         "nombres, apellidos, correo, tipo_persona, telefono, fecha_registro",
       )
       .is("deleted_at", null)
       .order("nombres");
+    if (!hasFullAccess) {
+      query = query.or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`);
+    }
+    const { data } = await query;
     if (data?.length) {
       exportCSV(
         data as Record<string, unknown>[],
@@ -31,22 +38,27 @@ export function useReporteExportar() {
   };
 
   const handleExportAsistencias = async () => {
+    if (loadingScope) return;
     if (!desde || !hasta) {
       alert("Selecciona el rango de fechas");
       return;
     }
     setLoading("asistencias");
-    const { data } = await supabase
+    let query = supabase
       .from("asistencias")
       .select(
         `
         estado, created_at,
-        persona:persona_id(nombres, apellidos),
+        persona:persona_id(nombres, apellidos, lider_id),
         evento:evento_id(nombre, fecha)
       `,
       )
       .gte("created_at", desde)
       .lte("created_at", hasta + "T23:59:59");
+    if (!hasFullAccess) {
+      query = query.or(`persona_id.in.(${scopedPersonaIds.join(',')}),persona.lider_id.in.(${scopedPersonaIds.join(',')})`);
+    }
+    const { data } = await query;
     const flat = (data ?? []).map((a) => {
       const personaRaw = a.persona as unknown;
       const persona = (
@@ -76,21 +88,30 @@ export function useReporteExportar() {
   };
 
   const handleExportInactivos = async () => {
+    if (loadingScope) return;
     setLoading("inactivos");
     const hoy = new Date();
     const hace30 = subDays(hoy, 30);
-    const { data: asistencias } = await supabase
+    let queryAsist = supabase
       .from("asistencias")
-      .select("persona_id, created_at")
+      .select("persona_id, created_at, persona:persona_id(lider_id)")
       .eq("estado", "asistio")
       .gte("created_at", hace30.toISOString());
+    if (!hasFullAccess) {
+      queryAsist = queryAsist.or(`persona_id.in.(${scopedPersonaIds.join(',')}),persona.lider_id.in.(${scopedPersonaIds.join(',')})`);
+    }
+    const { data: asistencias } = await queryAsist;
     const activos = new Set((asistencias ?? []).map((a) => a.persona_id));
 
-    const { data: personas } = await supabase
+    let queryPers = supabase
       .from("personas")
       .select("id, nombres, apellidos, correo, tipo_persona, telefono")
       .is("deleted_at", null)
       .not("tipo_persona", "eq", "visitante");
+    if (!hasFullAccess) {
+      queryPers = queryPers.or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`);
+    }
+    const { data: personas } = await queryPers;
 
     const inactivos = (personas ?? [])
       .filter((p) => !activos.has(p.id))
@@ -109,15 +130,20 @@ export function useReporteExportar() {
   };
 
   const handleExportNuevos = async () => {
+    if (loadingScope) return;
     setLoading("nuevos");
     const hoy = new Date();
     const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    const { data } = await supabase
+    let query = supabase
       .from("personas")
       .select("nombres, apellidos, correo, tipo_persona, fecha_registro")
       .is("deleted_at", null)
       .gte("fecha_registro", inicioMes.toISOString().split("T")[0])
       .order("fecha_registro", { ascending: false });
+    if (!hasFullAccess) {
+      query = query.or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`);
+    }
+    const { data } = await query;
     if (data?.length)
       exportCSV(
         data as Record<string, unknown>[],
@@ -127,35 +153,55 @@ export function useReporteExportar() {
   };
 
   const handleExportSinReporte = async () => {
+    if (loadingScope) return;
     setLoading("sin_reporte");
     const hoy = format(new Date(), "yyyy-MM-dd");
+
+    let eventosQuery = supabase
+      .from("eventos")
+      .select("id, nombre, fecha, hora_inicio, estado, grupo_id")
+      .lte("fecha", hoy)
+      .neq("estado", "cancelado")
+      .order("fecha", { ascending: false });
+
+    let gruposQuery = supabase
+      .from("grupos")
+      .select(
+        `
+        id, nombre, dia_reunion,
+        red:red_id(nombre),
+        lider:personas!lider_id(nombres, apellidos, telefono, correo),
+        sublider:personas!sublider_id(nombres, apellidos, telefono)
+      `,
+      )
+      .eq("estado", true)
+      .is("deleted_at", null);
+
+    let miembrosQuery = supabase
+      .from("grupo_miembros")
+      .select("persona_id, grupo_id")
+      .eq("activo", true);
+
+    if (!hasFullAccess) {
+      if (myGroupIds.length > 0) {
+        eventosQuery = eventosQuery.or(`grupo_id.is.null,grupo_id.in.(${myGroupIds.join(",")})`);
+        gruposQuery = gruposQuery.in("id", myGroupIds);
+        miembrosQuery = miembrosQuery.in("grupo_id", myGroupIds);
+      } else {
+        eventosQuery = eventosQuery.is("grupo_id", null);
+        gruposQuery = gruposQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+        miembrosQuery = miembrosQuery.eq("grupo_id", "00000000-0000-0000-0000-000000000000");
+      }
+    }
+
     const [
       { data: eventosData },
       { data: gruposData },
       { data: miembrosData },
     ] = await Promise.all([
-      supabase
-        .from("eventos")
-        .select("id, nombre, fecha, hora_inicio, estado, grupo_id")
-        .lte("fecha", hoy)
-        .neq("estado", "cancelado")
-        .order("fecha", { ascending: false }),
-      supabase
-        .from("grupos")
-        .select(
-          `
-          id, nombre, dia_reunion,
-          red:red_id(nombre),
-          lider:personas!lider_id(nombres, apellidos, telefono, correo),
-          sublider:personas!sublider_id(nombres, apellidos, telefono)
-        `,
-        )
-        .eq("estado", true)
-        .is("deleted_at", null),
-      supabase
-        .from("grupo_miembros")
-        .select("persona_id, grupo_id")
-        .eq("activo", true),
+      eventosQuery,
+      gruposQuery,
+      miembrosQuery,
     ]);
 
     const personaToGroup = new Map<string, string>();
@@ -229,7 +275,7 @@ export function useReporteExportar() {
   };
 
   return {
-    loading,
+    loading: loading || (loadingScope ? "resolving_scope" : null),
     desde,
     setDesde,
     hasta,

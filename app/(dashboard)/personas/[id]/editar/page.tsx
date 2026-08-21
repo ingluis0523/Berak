@@ -24,6 +24,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function EditarPersonaPage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
+  const { getCurrentUser } = await import('@/lib/current-user')
+  const currentUser = await getCurrentUser()
+
+  const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
+  const canEditar = hasFullAccess || currentUser?.hasPermission('editar_personas')
+  if (!canEditar) {
+    notFound()
+  }
 
   const [{ data: persona }, { data: estados }, { data: lideres }] = await Promise.all([
     supabase
@@ -49,7 +57,7 @@ export default async function EditarPersonaPage({ params }: Props) {
   if (!persona) notFound()
 
   return (
-    <div className="space-y-5 max-w-3xl">
+    <div className="space-y-5 w-full max-w-3xl mx-auto">
       <Link href={`/personas/${id}`} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900">
         <ArrowLeft size={15} />
         Volver a {persona.nombres} {persona.apellidos}

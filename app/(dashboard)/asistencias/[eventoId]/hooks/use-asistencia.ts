@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getInitials } from "@/lib/utils";
 import type { Persona, Asistencia, GrupoMiembro, EstadoAsistencia } from "@/types";
@@ -40,6 +40,8 @@ interface UseAsistenciaProps {
   miembrosIniciales: (GrupoMiembro & { persona: Persona })[];
   asistenciasIniciales: (Asistencia & { persona: Persona | null })[];
   usuarioId: string | null;
+  hasFullAccess: boolean;
+  scopedPersonaIds: string[];
 }
 
 export function useAsistencia({
@@ -48,9 +50,13 @@ export function useAsistencia({
   miembrosIniciales,
   asistenciasIniciales,
   usuarioId,
+  hasFullAccess,
+  scopedPersonaIds,
 }: UseAsistenciaProps) {
   const supabase = createClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
 
   const asistenciasByPersonaId = useMemo(() => {
     const map: Record<string, Asistencia & { persona: Persona | null }> = {};
@@ -185,16 +191,22 @@ export function useAsistencia({
         return;
       }
       setSearchLoading(true);
-      const { data } = await supabase
+      let query = supabase
         .from("personas")
         .select("id, nombres, apellidos, tipo_persona, foto_url")
         .or(`nombres.ilike.%${q}%,apellidos.ilike.%${q}%`)
         .is("deleted_at", null)
         .limit(10);
+
+      if (!hasFullAccess) {
+        query = query.or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`);
+      }
+
+      const { data } = await query;
       setSearchResults((data ?? []) as Persona[]);
       setSearchLoading(false);
     },
-    [supabase],
+    [supabase, hasFullAccess, scopedPersonaIds],
   );
 
   const addPersonaFromSearch = useCallback(
@@ -286,14 +298,21 @@ export function useAsistencia({
       .eq("id", evento.id);
 
     setFinalizing(false);
-    const params =
-      grupoOrigenId && !evento.grupo_id ? `?grupo_id=${grupoOrigenId}` : "";
+    const queryParts: string[] = [];
+    if (grupoOrigenId) {
+      queryParts.push(`grupo_id=${grupoOrigenId}`);
+    }
+    if (tabParam) {
+      queryParts.push(`tab=${tabParam}`);
+    }
+    const params = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
     router.push(`/eventos/${evento.id}${params}`);
   }
 
   const goBack = () => {
+    const params = tabParam ? `?tab=${tabParam}` : "";
     router.push(
-      grupoOrigenId ? `/grupos/${grupoOrigenId}` : "/eventos",
+      grupoOrigenId ? `/grupos/${grupoOrigenId}${params}` : "/eventos",
     );
   };
 

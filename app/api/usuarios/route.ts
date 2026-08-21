@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { sendWelcomeEmail } from '@/lib/email'
-import { isSuperAdmin } from '@/lib/current-user'
+import { isSuperAdmin, getCurrentUser } from '@/lib/current-user'
 
 export async function GET(request: Request) {
   // Verificar que el usuario que llama está autenticado
@@ -41,6 +41,15 @@ export async function GET(request: Request) {
     if (rData) callerRolNombre = rData.nombre
   }
   const isCallerSuperAdmin = isSuperAdmin(callerRolNombre)
+
+  const currentUser = await getCurrentUser()
+  let scopedPersonaIds: string[] = []
+  const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
+  if (!hasFullAccess && currentUser) {
+    const { resolveUserScope } = await import('@/lib/resolve-user-scope')
+    const { scopedPersonaIds: resolvedIds } = await resolveUserScope(adminClient, currentUser)
+    scopedPersonaIds = resolvedIds
+  }
 
   // Obtener IDs de roles que corresponden a Superadmin
   const { data: allRoles } = await adminClient.from('roles').select('id, nombre')
@@ -99,7 +108,7 @@ export async function GET(request: Request) {
     .from('usuarios')
     .select(`
       *,
-      persona:persona_id(id, nombres, apellidos, correo, tipo_persona),
+      persona:persona_id(id, nombres, apellidos, correo, tipo_persona, lider_id),
       rol:rol_id(id, nombre, activo)
     `, { count: 'exact' })
     .neq('id', user.id) // Excluir al usuario actual en sesión
@@ -118,6 +127,10 @@ export async function GET(request: Request) {
     } else {
       query = query.in('id', ['00000000-0000-0000-0000-000000000000'])
     }
+  }
+
+  if (!hasFullAccess) {
+    query = query.or(`persona_id.in.(${scopedPersonaIds.join(',')}),persona.lider_id.in.(${scopedPersonaIds.join(',')})`)
   }
 
   query = query.range(from, to)
@@ -191,6 +204,41 @@ export async function POST(request: Request) {
     if (rData) callerRolNombre = rData.nombre
   }
   const isCallerSuperAdmin = isSuperAdmin(callerRolNombre)
+
+  const currentUser = await getCurrentUser()
+  let scopedPersonaIds: string[] = []
+  const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
+  if (!hasFullAccess && currentUser) {
+    const { resolveUserScope } = await import('@/lib/resolve-user-scope')
+    const { scopedPersonaIds: resolvedIds } = await resolveUserScope(adminClient, currentUser)
+    scopedPersonaIds = resolvedIds
+  }
+
+  if (!hasFullAccess) {
+    if (!persona_id) {
+      return NextResponse.json(
+        { error: 'Debe asociar el usuario a una persona bajo su cargo' },
+        { status: 400 }
+      )
+    }
+    const { data: targetPersona } = await adminClient
+      .from('personas')
+      .select('id, lider_id')
+      .eq('id', persona_id)
+      .maybeSingle()
+
+    const isAllowed = targetPersona && (
+      scopedPersonaIds.includes(targetPersona.id) ||
+      (targetPersona.lider_id && scopedPersonaIds.includes(targetPersona.lider_id))
+    )
+
+    if (!isAllowed) {
+      return NextResponse.json(
+        { error: 'No tiene permisos para crear un usuario para esta persona' },
+        { status: 403 }
+      )
+    }
+  }
 
   // Si intentan asignar rol de superadmin y no son superadmin, bloquear
   if (rol_id) {

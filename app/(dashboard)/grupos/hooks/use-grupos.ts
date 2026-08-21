@@ -10,11 +10,13 @@ interface GrupoRow extends Grupo {
 interface UseGruposProps {
   grupos: GrupoRow[];
   perPage?: number;
+  redes?: { id: string; nombre: string }[];
 }
 
-export function useGrupos({ grupos, perPage = 10 }: UseGruposProps) {
+export function useGrupos({ grupos, perPage = 10, redes = [] }: UseGruposProps) {
   const [search, setSearch] = useState("");
-  const [redFilter, setRedFilter] = useState("all");
+  const defaultRedFilter = redes.length === 1 ? redes[0].id : "all";
+  const [redFilter, setRedFilter] = useState(defaultRedFilter);
   const [estadoFilter, setEstadoFilter] = useState("all");
   const [page, setPage] = useState(1);
 

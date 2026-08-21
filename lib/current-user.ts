@@ -13,6 +13,8 @@ export interface CurrentUser {
   is_encargado_red: boolean
   /** IDs of grupos where this user is the lider (for fine-grained persona scoping) */
   lider_grupo_ids: string[]
+  /** IDs of grupos where this user is a member */
+  miembro_grupo_ids: string[]
   hasPermission: (perm: string) => boolean
   /**
    * Returns true if the user can see a given module in the sidebar/app.
@@ -114,12 +116,17 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   // Red scoping: find the primary red for this user's persona (skipped for admins).
   let red_id: string | null = null
+  let miembro_grupo_ids: string[] = []
   if (!is_admin && usuario?.persona_id) {
     const { data: gms } = await supabase
       .from('grupo_miembros')
-      .select('grupo:grupos(red_id)')
+      .select('grupo_id, grupo:grupos(red_id)')
       .eq('persona_id', usuario.persona_id)
       .eq('activo', true)
+
+    miembro_grupo_ids = (gms ?? [])
+      .map((gm) => gm.grupo_id)
+      .filter(Boolean) as string[]
 
     for (const gm of (gms ?? [])) {
       const grupoRaw = gm.grupo
@@ -198,6 +205,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     red_id,
     is_encargado_red,
     lider_grupo_ids,
+    miembro_grupo_ids,
     hasPermission: (perm: string) => is_admin || !hasRole || permisos.length === 0 || permisos.includes(perm),
     canSeeModule,
   }

@@ -6,6 +6,7 @@ import GrupoDetalle from './grupo-detalle'
 
 interface Props {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ tab?: string }>
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -15,8 +16,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: data?.nombre ?? 'Grupo' }
 }
 
-export default async function GrupoPage({ params }: Props) {
+export default async function GrupoPage({ params, searchParams }: Props) {
   const { id } = await params
+  const { tab } = await searchParams
   const [supabase, currentUser] = await Promise.all([createClient(), getCurrentUser()])
 
   const { data: grupo } = await supabase
@@ -33,6 +35,23 @@ export default async function GrupoPage({ params }: Props) {
     .single()
 
   if (!grupo) notFound()
+
+  const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
+  if (!hasFullAccess) {
+    if (currentUser?.is_encargado_red && currentUser.red_id) {
+      if (grupo.red_id !== currentUser.red_id) {
+        notFound()
+      }
+    } else {
+      const myGroupIds = new Set([
+        ...(currentUser?.lider_grupo_ids ?? []),
+        ...(currentUser?.miembro_grupo_ids ?? [])
+      ])
+      if (!myGroupIds.has(grupo.id)) {
+        notFound()
+      }
+    }
+  }
 
   const [{ data: miembros }, { data: estados }] = await Promise.all([
     supabase
@@ -108,6 +127,20 @@ export default async function GrupoPage({ params }: Props) {
     })
   }
 
+  const isLider = !!(
+    currentUser?.persona_id &&
+    (grupo.lider_id === currentUser.persona_id ||
+      grupo.sublider_id === currentUser.persona_id ||
+      grupo.anfitrion_id === currentUser.persona_id)
+  );
+  const isEncargadoRed = !!(
+    currentUser?.is_encargado_red &&
+    currentUser.red_id === grupo.red_id
+  );
+  const canEditar = !!(hasFullAccess || currentUser?.hasPermission('editar_grupos'));
+  const canManageMembers = !!(hasFullAccess || isEncargadoRed || isLider || currentUser?.hasPermission('gestionar_miembros'));
+  const canCrearPersonas = !!(hasFullAccess || currentUser?.hasPermission('crear_personas'));
+
   return (
     <GrupoDetalle
       grupo={grupo}
@@ -116,6 +149,10 @@ export default async function GrupoPage({ params }: Props) {
       currentPersonaId={currentUser?.persona_id ?? null}
       estados={estados ?? []}
       nuevosAttendance={nuevosAttendance}
+      canEditar={canEditar}
+      canManageMembers={canManageMembers}
+      canCrearPersonas={canCrearPersonas}
+      defaultTab={tab}
     />
   )
 }

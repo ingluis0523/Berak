@@ -64,7 +64,7 @@ export default function GruposClient({ grupos, redes, canCrear, canEditar }: Pro
     paginated,
     fromIndex,
     toIndex,
-  } = useGrupos({ grupos, perPage: PER_PAGE });
+  } = useGrupos({ grupos, perPage: PER_PAGE, redes });
 
   return (
     <div className="space-y-6">
@@ -98,7 +98,7 @@ export default function GruposClient({ grupos, redes, canCrear, canEditar }: Pro
             <SelectValue placeholder="Filtrar por red" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todas las redes</SelectItem>
+            {redes.length !== 1 && <SelectItem value="all">Todas las redes</SelectItem>}
             {redes.map((r) => (
               <SelectItem key={r.id} value={r.id}>
                 {r.nombre}

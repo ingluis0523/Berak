@@ -46,14 +46,20 @@ export default async function EventosPage({ searchParams }: PageProps) {
   // Resolve visible grupo IDs; null = no filter (full access), [] = only global events
   const hasFullAccess = currentUser?.is_admin || currentUser?.hasPermission('acceso_todas_redes')
   let visibleGrupoIds: string[] | null = null
-  if (!hasFullAccess && currentUser?.red_id) {
-    const { data: gruposEnRed } = await supabase
-      .from('grupos')
-      .select('id')
-      .eq('red_id', currentUser.red_id)
-      .is('deleted_at', null)
-    visibleGrupoIds = (gruposEnRed ?? []).map((g) => g.id)
-    // else: no red assignment → no filter
+  if (!hasFullAccess) {
+    if (currentUser?.is_encargado_red && currentUser.red_id) {
+      const { data: gruposEnRed } = await supabase
+        .from('grupos')
+        .select('id')
+        .eq('red_id', currentUser.red_id)
+        .is('deleted_at', null)
+      visibleGrupoIds = (gruposEnRed ?? []).map((g) => g.id)
+    } else {
+      const liderIds = currentUser?.lider_grupo_ids ?? []
+      const miembroIds = currentUser?.miembro_grupo_ids ?? []
+      const myGroupIds = Array.from(new Set([...liderIds, ...miembroIds]))
+      visibleGrupoIds = myGroupIds
+    }
   }
 
   // Build eventos query: non-admins see global events + events for their red's grupos

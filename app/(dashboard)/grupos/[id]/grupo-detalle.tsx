@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Pencil, UserPlus, UserMinus, CalendarCheck, ChevronDown, ChevronRight, ChevronLeft, Eye, Plus, Check } from 'lucide-react'
@@ -51,6 +51,10 @@ interface Props {
   currentPersonaId: string | null
   estados: EstadoPersona[]
   nuevosAttendance: Record<string, number>
+  canEditar?: boolean
+  canManageMembers?: boolean
+  canCrearPersonas?: boolean
+  defaultTab?: string
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -102,9 +106,22 @@ function localToday() {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciales, currentPersonaId, estados, nuevosAttendance }: Props) {
+export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciales, currentPersonaId, estados, nuevosAttendance, canEditar = false, canManageMembers = false, canCrearPersonas = false, defaultTab }: Props) {
   const supabase = createClient()
   const router = useRouter()
+
+  const [activeTab, setActiveTab] = useState(defaultTab || 'miembros')
+
+  useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab)
+    }
+  }, [defaultTab])
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    router.replace(`/grupos/${grupo.id}?tab=${value}`, { scroll: false })
+  }
 
   const todayStr = localToday()
 
@@ -401,12 +418,14 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
             <p className="text-sm text-gray-500 mt-0.5">Red: {grupo.red.nombre}</p>
           )}
         </div>
-        <Button variant="outline" size="sm" asChild className="gap-1.5">
-          <Link href={`/grupos/${grupo.id}/editar`}>
-            <Pencil className="h-3.5 w-3.5" />
-            Editar
-          </Link>
-        </Button>
+        {canEditar && (
+          <Button variant="outline" size="sm" asChild className="gap-1.5">
+            <Link href={`/grupos/${grupo.id}/editar`}>
+              <Pencil className="h-3.5 w-3.5" />
+              Editar
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Info cards */}
@@ -428,7 +447,7 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="miembros">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="miembros">Miembros ({miembros.length})</TabsTrigger>
           <TabsTrigger value="eventos">Eventos</TabsTrigger>
@@ -445,16 +464,20 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h2 className="font-semibold text-gray-800">Miembros activos</h2>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={openNewPersona} className="gap-1.5">
-                  <Plus className="h-3.5 w-3.5" />
-                  Nueva persona
-                </Button>
-                <Button size="sm" onClick={handleOpenAddModal} className="gap-1.5">
-                  <UserPlus className="h-3.5 w-3.5" />
-                  Agregar miembro
-                </Button>
-              </div>
+              {canManageMembers && (
+                <div className="flex gap-2">
+                  {canCrearPersonas && (
+                    <Button size="sm" variant="outline" onClick={openNewPersona} className="gap-1.5">
+                      <Plus className="h-3.5 w-3.5" />
+                      Nueva persona
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={handleOpenAddModal} className="gap-1.5">
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Agregar miembro
+                  </Button>
+                </div>
+              )}
             </div>
 
             {miembros.length === 0 ? (
@@ -488,16 +511,18 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                               {p?.tipo_persona ?? '—'} · Ingresó: {formatDate(m.fecha_ingreso)}
                             </p>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            title="Remover del grupo"
-                            loading={removeLoadingId === m.id}
-                            onClick={() => handleRemoveMiembro(m)}
-                            className="text-red-400 hover:text-red-600 hover:bg-red-50"
-                          >
-                            <UserMinus className="h-3.5 w-3.5" />
-                          </Button>
+                          {canManageMembers && (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title="Remover del grupo"
+                              loading={removeLoadingId === m.id}
+                              onClick={() => handleRemoveMiembro(m)}
+                              className="text-red-400 hover:text-red-600 hover:bg-red-50"
+                            >
+                              <UserMinus className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </li>
                       )
                     })}
@@ -572,29 +597,39 @@ export default function GrupoDetalle({ grupo, miembrosIniciales, eventosIniciale
                               <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 ml-1">{semana}</p>
                               <div className="space-y-2">
                                 {evts.map((e) => (
-                                  <div key={e.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
+                                  <div key={e.id} className="flex items-start sm:items-center gap-2 sm:gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50">
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-gray-900">{e.nombre}</p>
+                                      <p className="text-sm font-medium text-gray-900 truncate">{e.nombre}</p>
                                       <p className="text-xs text-gray-500">
                                         {formatDate(e.fecha)}{e.hora_inicio && ` · ${e.hora_inicio.slice(0, 5)}`}
                                       </p>
+                                      <div className="flex items-center gap-1.5 flex-wrap mt-1 sm:hidden">
+                                        {!e.grupo_id && <Badge variant="secondary" className="text-xs">Global</Badge>}
+                                        <Badge variant={e.estado === 'realizado' ? 'realizado' : e.estado === 'cancelado' ? 'cancelado' : 'programado'}>
+                                          {e.estado}
+                                        </Badge>
+                                      </div>
                                     </div>
-                                    {!e.grupo_id && <Badge variant="secondary" className="text-xs shrink-0">Global</Badge>}
-                                    <Badge variant={e.estado === 'realizado' ? 'realizado' : e.estado === 'cancelado' ? 'cancelado' : 'programado'}>
-                                      {e.estado}
-                                    </Badge>
+                                    <div className="hidden sm:flex items-center gap-1.5 shrink-0">
+                                      {!e.grupo_id && <Badge variant="secondary" className="text-xs">Global</Badge>}
+                                      <Badge variant={e.estado === 'realizado' ? 'realizado' : e.estado === 'cancelado' ? 'cancelado' : 'programado'}>
+                                        {e.estado}
+                                      </Badge>
+                                    </div>
                                     {e.estado !== 'cancelado' && (
-                                      <div className="flex items-center gap-1.5 shrink-0">
+                                      <div className="flex items-center gap-1 shrink-0">
                                         {e.estado === 'realizado' && (
-                                          <Button variant="ghost" size="sm" asChild className="gap-1">
-                                            <Link href={`/eventos/${e.id}${!e.grupo_id ? `?grupo_id=${grupo.id}` : ''}`}>
-                                              <Eye className="h-3.5 w-3.5" />Resumen
+                                          <Button variant="ghost" size="sm" asChild className="h-8 w-8 p-0 sm:w-auto sm:px-3 sm:gap-1">
+                                            <Link href={`/eventos/${e.id}?grupo_id=${grupo.id}&tab=${activeTab}`}>
+                                              <Eye className="h-3.5 w-3.5" />
+                                              <span className="hidden sm:inline">Resumen</span>
                                             </Link>
                                           </Button>
                                         )}
-                                        <Button variant="outline" size="sm" asChild className="gap-1">
-                                          <Link href={`/asistencias/${e.id}${!e.grupo_id ? `?grupo_id=${grupo.id}` : ''}`}>
-                                            <CalendarCheck className="h-3.5 w-3.5" />Asistencia
+                                        <Button variant="outline" size="sm" asChild className="h-8 w-8 p-0 sm:w-auto sm:px-3 sm:gap-1">
+                                           <Link href={`/asistencias/${e.id}?grupo_id=${grupo.id}&tab=${activeTab}`}>
+                                            <CalendarCheck className="h-3.5 w-3.5" />
+                                            <span className="hidden sm:inline">Asistencia</span>
                                           </Link>
                                         </Button>
                                       </div>

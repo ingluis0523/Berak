@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -62,6 +62,12 @@ export function useEditarPersona({ persona }: UseEditarPersonaProps) {
       observaciones: persona.observaciones ?? "",
     },
   });
+
+  useEffect(() => {
+    register("tipo_persona");
+    register("estado_persona_id");
+    register("lider_id");
+  }, [register]);
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
