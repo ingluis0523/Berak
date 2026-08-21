@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/current-user'
 import { formatDate } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -38,7 +39,23 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
 
   if (!tipo || !TIPO_LABELS[tipo]) notFound()
 
-  const supabase = await createClient()
+  const [supabase, currentUser] = await Promise.all([
+    createClient(),
+    getCurrentUser(),
+  ])
+  const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
+
+  // Resolve visible groups & members for leaders
+  let myGroupIds: string[] = []
+  let scopedPersonaIds: string[] = []
+
+  if (!hasFullAccess) {
+    const { resolveUserScope } = await import('@/lib/resolve-user-scope')
+    const { myGroupIds: gIds, scopedPersonaIds: pIds } = await resolveUserScope(supabase, currentUser)
+    myGroupIds = gIds
+    scopedPersonaIds = pIds
+  }
+
   const title = TIPO_LABELS[tipo]
   const page = Math.max(1, parseInt(pageParam ?? '1', 10))
   const from = (page - 1) * PER_PAGE
@@ -46,7 +63,7 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
 
   // ── Grupos activos ────────────────────────────────────────────────────────
   if (tipo === 'grupos_activos') {
-    const { data: grupos } = await supabase
+    let query = supabase
       .from('grupos')
       .select(`
         id, nombre, estado,
@@ -56,6 +73,16 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
       .eq('estado', true)
       .is('deleted_at', null)
       .order('nombre')
+
+    if (!hasFullAccess) {
+      if (myGroupIds.length > 0) {
+        query = query.in('id', myGroupIds)
+      } else {
+        query = query.eq('id', '00000000-0000-0000-0000-000000000000')
+      }
+    }
+
+    const { data: grupos } = await query
 
     const grupoIds = (grupos ?? []).map((g) => g.id)
     const memberCountMap: Record<string, number> = {}
@@ -132,12 +159,22 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
     const endOfWeek = new Date(startOfWeek)
     endOfWeek.setDate(startOfWeek.getDate() + 6)
 
-    const { data: eventos } = await supabase
+    let query = supabase
       .from('eventos')
       .select('id, nombre, fecha, hora_inicio, estado, grupo:grupos(id, nombre)')
       .gte('fecha', startOfWeek.toISOString().split('T')[0])
       .lte('fecha', endOfWeek.toISOString().split('T')[0])
       .order('fecha', { ascending: true })
+
+    if (!hasFullAccess) {
+      if (myGroupIds.length > 0) {
+        query = query.or(`grupo_id.is.null,grupo_id.in.(${myGroupIds.join(',')})`)
+      } else {
+        query = query.is('grupo_id', null)
+      }
+    }
+
+    const { data: eventos } = await query
 
     return (
       <DetalleLayout title={title} count={eventos?.length ?? 0} page={page} totalPages={1} tipo={tipo}>
@@ -228,6 +265,10 @@ export default async function DashboardDetallePage({ searchParams }: PageProps) 
     personasQuery = personasQuery.gte('fecha_registro', startOfMonth)
   } else if (tipo === 'inactivos') {
     if (estadoFilterId) personasQuery = personasQuery.eq('estado_persona_id', estadoFilterId)
+  }
+
+  if (!hasFullAccess) {
+    personasQuery = personasQuery.or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`)
   }
 
   const { data: personas, count } = await personasQuery

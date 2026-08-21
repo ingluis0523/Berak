@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/current-user'
 import { NuevaPersonaForm } from './nueva-persona-form'
@@ -10,6 +11,10 @@ export default async function NuevaPersonaPage() {
   const currentUser = await getCurrentUser()
 
   const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
+  const canCrear = hasFullAccess || currentUser?.hasPermission('crear_personas')
+  if (!canCrear) {
+    notFound()
+  }
 
   // Build a scoped list of persona IDs visible to this user (for the lider dropdown).
   // Mirrors the same logic used in personas/page.tsx.
@@ -33,12 +38,13 @@ export default async function NuevaPersonaPage() {
           .in('grupo_id', grupoIds).eq('activo', true)
         memberIds = (mRows ?? []).map((m) => m.persona_id as string)
       }
-      scopedIds = [...new Set([...memberIds, ...roleIds])]
+      scopedIds = [...new Set([currentUser.persona_id, ...memberIds, ...roleIds].filter(Boolean) as string[])]
     } else if ((currentUser.lider_grupo_ids ?? []).length > 0) {
       const { data: mRows } = await supabase
         .from('grupo_miembros').select('persona_id')
         .in('grupo_id', currentUser.lider_grupo_ids).eq('activo', true)
-      scopedIds = [...new Set((mRows ?? []).map((m) => m.persona_id as string))]
+      const memberIds = (mRows ?? []).map((m) => m.persona_id as string)
+      scopedIds = [...new Set([currentUser.persona_id, ...memberIds].filter(Boolean) as string[])]
     } else if (currentUser.red_id) {
       const { data: grupos } = await supabase
         .from('grupos').select('id')
@@ -48,9 +54,10 @@ export default async function NuevaPersonaPage() {
         const { data: mRows } = await supabase
           .from('grupo_miembros').select('persona_id')
           .in('grupo_id', grupoIds).eq('activo', true)
-        scopedIds = [...new Set((mRows ?? []).map((m) => m.persona_id as string))]
+        const memberIds = (mRows ?? []).map((m) => m.persona_id as string)
+        scopedIds = [...new Set([currentUser.persona_id, ...memberIds].filter(Boolean) as string[])]
       } else {
-        scopedIds = []
+        scopedIds = [currentUser.persona_id].filter(Boolean) as string[]
       }
     }
   }
@@ -84,6 +91,7 @@ export default async function NuevaPersonaPage() {
           value: l.id,
           label: `${l.nombres} ${l.apellidos}`,
         }))}
+        currentPersonaId={currentUser?.persona_id ?? null}
       />
     </div>
   )

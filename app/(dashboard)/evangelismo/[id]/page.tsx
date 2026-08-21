@@ -221,7 +221,7 @@ export default async function EvangelismoDetallePage({ params }: PageProps) {
   timeline.sort((a, b) => b.date.localeCompare(a.date))
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 w-full">
       {/* Header */}
       <div>
         <Button variant="ghost" size="sm" asChild>

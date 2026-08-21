@@ -18,12 +18,13 @@ interface HeaderProps {
 }
 
 export function Header({ title, onMenuClick }: HeaderProps) {
-  const {
+    const {
     user,
     email,
     initials,
     handleLogout,
     goConfiguracion,
+    mounted,
   } = useHeader();
 
   return (
@@ -51,36 +52,40 @@ export function Header({ title, onMenuClick }: HeaderProps) {
         </button>
 
         {/* User menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1">
-              <Avatar className="h-8 w-8 cursor-pointer">
-                <AvatarImage src={user?.user_metadata?.avatar_url} />
-                <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-              </Avatar>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-semibold text-gray-900">
-                  Mi cuenta
-                </span>
-                <span className="text-[11px] text-gray-500 truncate">
-                  {email}
-                </span>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={goConfiguracion}>
-              Configuración
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem danger onClick={handleLogout}>
-              Cerrar sesión
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {mounted ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1">
+                <Avatar className="h-8 w-8 cursor-pointer">
+                  <AvatarImage src={user?.user_metadata?.avatar_url} />
+                  <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+                </Avatar>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-semibold text-gray-900">
+                    Mi cuenta
+                  </span>
+                  <span className="text-[11px] text-gray-500 truncate">
+                    {email}
+                  </span>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={goConfiguracion}>
+                Configuración
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem danger onClick={handleLogout}>
+                Cerrar sesión
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse" />
+        )}
       </div>
     </header>
   );

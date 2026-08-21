@@ -48,6 +48,12 @@ export function useSidebar({
         return (
           isAdmin || !hasRole || permisos.some((p) => p.includes("configuracion"))
         );
+
+      const isRestrictedLeader = !isAdmin && hasRole && !permisos.includes('acceso_todas_redes');
+      if (isRestrictedLeader && (i.module === 'asistencias' || i.module === 'eventos')) {
+        return false;
+      }
+
       if (i.module) return canSeeModule(i.module);
       return true;
     });

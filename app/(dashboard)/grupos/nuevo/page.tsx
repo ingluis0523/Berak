@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/lib/current-user'
 import NuevoGrupoForm from './nuevo-grupo-form'
@@ -10,6 +11,10 @@ export default async function NuevoGrupoPage() {
   const currentUser = await getCurrentUser()
 
   const hasFullAccess = currentUser?.is_admin || currentUser?.hasPermission('acceso_todas_redes')
+  const canCrear = hasFullAccess || currentUser?.hasPermission('crear_grupos')
+  if (!canCrear) {
+    notFound()
+  }
 
   // For restricted users: pre-fill red_id with their own red
   const defaultRedId = (!hasFullAccess && currentUser?.red_id) ? currentUser.red_id : null

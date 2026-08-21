@@ -1,6 +1,6 @@
 'use client'
 
-import type { SelectOption } from '@/types'
+import type { SelectOption, TipoPersona } from '@/types'
 import { useNuevaPersona, TIPO_OPTIONS } from '../hooks/use-nueva-persona'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,23 +20,25 @@ import { Network } from 'lucide-react'
 interface Props {
   estados: SelectOption[]
   lideres: SelectOption[]
+  currentPersonaId: string | null
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function NuevaPersonaForm({ estados, lideres }: Props) {
+export function NuevaPersonaForm({ estados, lideres, currentPersonaId }: Props) {
   const {
     serverError,
     loading,
     redNombre,
     register,
     handleSubmit,
+    setValue,
     errors,
     handleLiderChange,
     onSubmit,
     watch,
     goBack,
-  } = useNuevaPersona();
+  } = useNuevaPersona(currentPersonaId);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">

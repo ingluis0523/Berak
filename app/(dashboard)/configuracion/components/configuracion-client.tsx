@@ -7,7 +7,11 @@ import { TabEstados } from "./tab-estados";
 import { TabAutomatizaciones } from "./tab-automatizaciones";
 import { TabGeneral } from "./tab-general";
 
-export function ConfiguracionClient() {
+interface Props {
+  canSeeSystemSettings: boolean;
+}
+
+export function ConfiguracionClient({ canSeeSystemSettings }: Props) {
   return (
     <Tabs defaultValue="cuenta">
       <TabsList>
@@ -15,35 +19,43 @@ export function ConfiguracionClient() {
           <User size={14} />
           Mi cuenta
         </TabsTrigger>
-        <TabsTrigger value="estados">
-          <Settings size={14} />
-          Estados de persona
-        </TabsTrigger>
-        <TabsTrigger value="automatizaciones">
-          <Zap size={14} />
-          Automatizaciones
-        </TabsTrigger>
-        <TabsTrigger value="general">
-          <Settings size={14} />
-          General
-        </TabsTrigger>
+        {canSeeSystemSettings && (
+          <>
+            <TabsTrigger value="estados">
+              <Settings size={14} />
+              Estados de persona
+            </TabsTrigger>
+            <TabsTrigger value="automatizaciones">
+              <Zap size={14} />
+              Automatizaciones
+            </TabsTrigger>
+            <TabsTrigger value="general">
+              <Settings size={14} />
+              General
+            </TabsTrigger>
+          </>
+        )}
       </TabsList>
 
       <TabsContent value="cuenta">
         <TabMiCuenta />
       </TabsContent>
 
-      <TabsContent value="estados">
-        <TabEstados />
-      </TabsContent>
+      {canSeeSystemSettings && (
+        <>
+          <TabsContent value="estados">
+            <TabEstados />
+          </TabsContent>
 
-      <TabsContent value="automatizaciones">
-        <TabAutomatizaciones />
-      </TabsContent>
+          <TabsContent value="automatizaciones">
+            <TabAutomatizaciones />
+          </TabsContent>
 
-      <TabsContent value="general">
-        <TabGeneral />
-      </TabsContent>
+          <TabsContent value="general">
+            <TabGeneral />
+          </TabsContent>
+        </>
+      )}
     </Tabs>
   );
 }

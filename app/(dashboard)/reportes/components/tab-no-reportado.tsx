@@ -124,7 +124,7 @@ export function TabNoReportado() {
                   <SelectValue placeholder="Red" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="todas">Todas las redes</SelectItem>
+                  {redesList.length !== 1 && <SelectItem value="todas">Todas las redes</SelectItem>}
                   {redesList.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       {r.nombre}

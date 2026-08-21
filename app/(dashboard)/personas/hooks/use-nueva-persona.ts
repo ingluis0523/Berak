@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -37,7 +37,7 @@ export const TIPO_OPTIONS = (
   Object.entries(TIPO_PERSONA_LABELS) as [TipoPersona, string][]
 ).filter(([val]) => val !== "servidor");
 
-export function useNuevaPersona() {
+export function useNuevaPersona(currentPersonaId?: string | null) {
   const router = useRouter();
   const [serverError, setServerError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -51,8 +51,17 @@ export function useNuevaPersona() {
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { tipo_persona: "visitante" },
+    defaultValues: {
+      tipo_persona: "visitante",
+      lider_id: currentPersonaId ?? undefined,
+    },
   });
+
+  useEffect(() => {
+    register("tipo_persona");
+    register("estado_persona_id");
+    register("lider_id");
+  }, [register]);
 
   async function handleLiderChange(v: string) {
     setValue("lider_id", v);

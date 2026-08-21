@@ -30,7 +30,7 @@ import { EventoCancelarButton } from "./evento-cancelar-button";
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ grupo_id?: string }>;
+  searchParams: Promise<{ grupo_id?: string; tab?: string }>;
 }
 
 export async function generateMetadata({
@@ -51,7 +51,7 @@ export default async function EventoDetallePage({
   searchParams,
 }: PageProps) {
   const { id } = await params;
-  const { grupo_id: grupoFiltro } = await searchParams;
+  const { grupo_id: grupoFiltro, tab: tabParam } = await searchParams;
   const [supabase, currentUser] = await Promise.all([
     createClient(),
     getCurrentUser(),
@@ -117,9 +117,12 @@ export default async function EventoDetallePage({
   }
 
   const { data: asistencias } = await asistQuery;
-  const asist = (asistencias ?? []) as (Asistencia & {
+  const rawAsist = (asistencias ?? []) as (Asistencia & {
     persona: Persona | null;
   })[];
+
+  // Filter out attendances where the persona is hidden by RLS (persona is null but persona_id is not null)
+  const asist = rawAsist.filter((a) => !(a.persona === null && a.persona_id !== null));
 
   const asistio = asist.filter((a) => a.estado === "asistio");
   const noAsistio = asist.filter((a) => a.estado === "no_asistio");
@@ -172,11 +175,11 @@ export default async function EventoDetallePage({
     totalMiembros > 0 ? Math.round((asistio.length / totalMiembros) * 100) : 0;
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 w-full">
       {/* Header */}
       <div className="flex items-start gap-3">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/eventos">
+          <Link href={grupoFiltro ? `/grupos/${grupoFiltro}${tabParam ? `?tab=${tabParam}` : ''}` : "/eventos"}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>

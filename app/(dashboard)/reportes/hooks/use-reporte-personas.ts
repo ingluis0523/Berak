@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getNombreCompleto, formatDate } from "@/lib/utils";
+import { useReporteScope } from "./use-reporte-scope";
 import {
   subMonths,
   format,
@@ -23,6 +24,7 @@ export function useReportePersonas({
   itemsPerPage = 10,
 }: UseReportePersonasProps) {
   const supabase = createClient();
+  const { loading: loadingScope, hasFullAccess, scopedPersonaIds } = useReporteScope();
   const [loading, setLoading] = useState(true);
   const [loadingInactivos, setLoadingInactivos] = useState(false);
   const [loadingNuevos, setLoadingNuevos] = useState(false);
@@ -50,10 +52,31 @@ export function useReportePersonas({
 
   // 1. Cargar KPIs y datos del gráfico (se ejecuta una sola vez)
   useEffect(() => {
+    if (loadingScope) return;
     const loadKPIsAndChart = async () => {
       setLoading(true);
 
-      // Peticiones de conteo ultra-rápidas (head: true)
+      let totalQuery = supabase.from("personas").select("id", { count: "exact", head: true }).is("deleted_at", null);
+      let visitantesQuery = supabase.from("personas").select("id", { count: "exact", head: true }).eq("tipo_persona", "visitante").is("deleted_at", null);
+      let inactivosQuery = supabase.from("reporte_personas_inactivas").select("id", { count: "exact", head: true });
+      let nuevosQuery = supabase.from("reporte_personas_nuevas").select("id", { count: "exact", head: true }).gte("fecha_registro", inicioMes.toISOString());
+      let personasFechasQuery = supabase.from("personas").select("fecha_registro").is("deleted_at", null).gte("fecha_registro", hace6m.toISOString());
+
+      if (!hasFullAccess) {
+        const { data: matchedPersonas } = await supabase
+          .from("personas")
+          .select("id")
+          .or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`);
+        const matchedIds = (matchedPersonas ?? []).map((p) => p.id);
+        const activeMatchedIds = matchedIds.length > 0 ? matchedIds : ['00000000-0000-0000-0000-000000000000'];
+
+        totalQuery = totalQuery.in("id", activeMatchedIds);
+        visitantesQuery = visitantesQuery.in("id", activeMatchedIds);
+        inactivosQuery = inactivosQuery.in("id", activeMatchedIds);
+        nuevosQuery = nuevosQuery.in("id", activeMatchedIds);
+        personasFechasQuery = personasFechasQuery.in("id", activeMatchedIds);
+      }
+
       const [
         { count: totalCount },
         { count: visitantesCount },
@@ -61,11 +84,11 @@ export function useReportePersonas({
         { count: nuevosCount },
         { data: personasFechas },
       ] = await Promise.all([
-        supabase.from("personas").select("id", { count: "exact", head: true }).is("deleted_at", null),
-        supabase.from("personas").select("id", { count: "exact", head: true }).eq("tipo_persona", "visitante").is("deleted_at", null),
-        supabase.from("reporte_personas_inactivas").select("id", { count: "exact", head: true }),
-        supabase.from("reporte_personas_nuevas").select("id", { count: "exact", head: true }).gte("fecha_registro", inicioMes.toISOString()),
-        supabase.from("personas").select("fecha_registro").is("deleted_at", null).gte("fecha_registro", hace6m.toISOString()),
+        totalQuery,
+        visitantesQuery,
+        inactivosQuery,
+        nuevosQuery,
+        personasFechasQuery,
       ]);
 
       const total = totalCount ?? 0;
@@ -103,20 +126,33 @@ export function useReportePersonas({
     };
 
     loadKPIsAndChart();
-  }, [supabase]);
+  }, [supabase, loadingScope, hasFullAccess, scopedPersonaIds]);
 
   // 2. Cargar página de personas inactivas desde el Servidor
   useEffect(() => {
+    if (loadingScope) return;
     const loadInactivosPage = async () => {
       setLoadingInactivos(true);
       const from = (pageInactivos - 1) * itemsPerPage;
       const to = from + itemsPerPage - 1;
 
-      const { data } = await supabase
+      let query = supabase
         .from("reporte_personas_inactivas")
         .select("id, nombres, apellidos, ultimo_evento_nombre, ultimo_evento_fecha, dias_sin_asistir")
         .order("dias_sin_asistir", { ascending: false })
         .range(from, to);
+
+      if (!hasFullAccess) {
+        const { data: matchedPersonas } = await supabase
+          .from("personas")
+          .select("id")
+          .or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`);
+        const matchedIds = (matchedPersonas ?? []).map((p) => p.id);
+        const activeMatchedIds = matchedIds.length > 0 ? matchedIds : ['00000000-0000-0000-0000-000000000000'];
+        query = query.in("id", activeMatchedIds);
+      }
+
+      const { data } = await query;
 
       const mapped = (data ?? []).map((p) => ({
         id: p.id,
@@ -132,21 +168,34 @@ export function useReportePersonas({
     };
 
     loadInactivosPage();
-  }, [supabase, pageInactivos, itemsPerPage]);
+  }, [supabase, pageInactivos, itemsPerPage, loadingScope, hasFullAccess, scopedPersonaIds]);
 
   // 3. Cargar página de personas nuevas desde el Servidor
   useEffect(() => {
+    if (loadingScope) return;
     const loadNuevosPage = async () => {
       setLoadingNuevos(true);
       const from = (pageNuevos - 1) * itemsPerPage;
       const to = from + itemsPerPage - 1;
 
-      const { data } = await supabase
+      let query = supabase
         .from("reporte_personas_nuevas")
         .select("id, nombres, apellidos, fecha_registro, grupo_nombre")
         .gte("fecha_registro", inicioMes.toISOString())
         .order("fecha_registro", { ascending: false })
         .range(from, to);
+
+      if (!hasFullAccess) {
+        const { data: matchedPersonas } = await supabase
+          .from("personas")
+          .select("id")
+          .or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`);
+        const matchedIds = (matchedPersonas ?? []).map((p) => p.id);
+        const activeMatchedIds = matchedIds.length > 0 ? matchedIds : ['00000000-0000-0000-0000-000000000000'];
+        query = query.in("id", activeMatchedIds);
+      }
+
+      const { data } = await query;
 
       const mapped = (data ?? []).map((p) => ({
         id: p.id,
@@ -160,10 +209,10 @@ export function useReportePersonas({
     };
 
     loadNuevosPage();
-  }, [supabase, pageNuevos, itemsPerPage]);
+  }, [supabase, pageNuevos, itemsPerPage, loadingScope, hasFullAccess, scopedPersonaIds]);
 
   return {
-    loading,
+    loading: loading || loadingScope,
     loadingInactivos,
     loadingNuevos,
     nuevosPorMes,

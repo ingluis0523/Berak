@@ -179,6 +179,13 @@ function PermisosPanel({
   onToggle: (permisoId: string, checked: boolean) => Promise<void>
 }) {
   const [toggling, setToggling] = useState<string | null>(null)
+  const [verSoloAsignados, setVerSoloAsignados] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  useEffect(() => {
+    setVerSoloAsignados(false)
+    setSearchQuery('')
+  }, [rol.id])
 
   const handleCheck = async (permisoId: string, checked: boolean) => {
     setToggling(permisoId)
@@ -187,57 +194,94 @@ function PermisosPanel({
   }
 
   const grouped = MODULO_ORDER.reduce<Record<string, Permiso[]>>((acc, mod) => {
-    const ps = permisos.filter(p => p.modulo === mod)
+    const ps = permisos.filter(p => {
+      if (p.modulo !== mod) return false
+      if (verSoloAsignados && !rolPermisos.has(p.id)) return false
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim()
+        const matchesName = p.nombre.toLowerCase().includes(q)
+        const matchesDesc = p.descripcion?.toLowerCase().includes(q)
+        if (!matchesName && !matchesDesc) return false
+      }
+      return true
+    })
     if (ps.length) acc[mod] = ps
     return acc
   }, {})
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <ShieldCheck size={18} className="text-blue-700" />
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">{rol.nombre}</h2>
-          <p className="text-xs text-gray-500">{rol.descripcion ?? 'Sin descripción'}</p>
+      <div className="flex items-center gap-2 border-b border-gray-100 pb-4">
+        <ShieldCheck size={20} className="text-blue-700 shrink-0" />
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-gray-900 truncate">{rol.nombre}</h2>
+          <p className="text-xs text-gray-500 truncate">{rol.descripcion ?? 'Sin descripción'}</p>
         </div>
-        <Badge variant={rol.activo ? 'success' : 'secondary'} className="ml-auto">
+        <Badge variant={rol.activo ? 'success' : 'secondary'} className="ml-auto shrink-0">
           {rol.activo ? 'Activo' : 'Inactivo'}
         </Badge>
       </div>
 
-      {Object.entries(grouped).map(([modulo, ps]) => (
-        <div key={modulo}>
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">
-            {MODULO_LABELS[modulo] ?? modulo}
-          </p>
-          <div className="space-y-2">
-            {ps.map(p => {
-              const checked = rolPermisos.has(p.id)
-              const isToggling = toggling === p.id
-              return (
-                <label
-                  key={p.id}
-                  className="flex items-start gap-3 cursor-pointer group rounded-lg p-2 hover:bg-gray-50 transition-colors"
-                >
-                  <Checkbox
-                    checked={checked}
-                    onCheckedChange={v => handleCheck(p.id, !!v)}
-                    disabled={isToggling}
-                    className="mt-0.5"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-800 font-mono">{p.nombre}</p>
-                    <p className="text-xs text-gray-500">{p.descripcion}</p>
-                  </div>
-                  {isToggling && (
-                    <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent shrink-0" />
-                  )}
-                </label>
-              )
-            })}
-          </div>
+      <div className="flex flex-col sm:flex-row gap-3 items-center">
+        <div className="flex-1 w-full">
+          <Input
+            placeholder="Buscar permiso por nombre o descripción..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="h-9 text-xs"
+          />
         </div>
-      ))}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full sm:w-auto shrink-0 text-xs h-9"
+          onClick={() => setVerSoloAsignados(prev => !prev)}
+        >
+          {verSoloAsignados ? 'Mostrar todos' : 'Ver solo asignados'}
+        </Button>
+      </div>
+
+      {Object.keys(grouped).length === 0 ? (
+        <div className="text-center py-10 text-gray-400 text-sm">
+          No hay permisos que coincidan con la búsqueda.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {Object.entries(grouped).map(([modulo, ps]) => (
+          <div key={modulo} className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/80">
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3 border-b border-gray-100 pb-1.5">
+              {MODULO_LABELS[modulo] ?? modulo}
+            </p>
+            <div className="space-y-2">
+              {ps.map(p => {
+                const checked = rolPermisos.has(p.id)
+                const isToggling = toggling === p.id
+                return (
+                  <label
+                    key={p.id}
+                    className="flex items-start gap-3 cursor-pointer group rounded-lg p-1.5 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 transition-all"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={v => handleCheck(p.id, !!v)}
+                      disabled={isToggling}
+                      className="mt-0.5"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 font-mono">{p.nombre}</p>
+                      <p className="text-[11px] text-gray-500 leading-relaxed mt-0.5">{p.descripcion}</p>
+                    </div>
+                    {isToggling && (
+                      <span className="ml-auto h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent shrink-0" />
+                    )}
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+        </div>
+      )}
     </div>
   )
 }

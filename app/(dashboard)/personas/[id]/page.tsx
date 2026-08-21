@@ -122,7 +122,7 @@ export default async function PersonaDetailPage({
   const historialGrupos = (grupoMiembros as GrupoMiembro[] | null)?.filter((g) => !g.activo) ?? []
 
   return (
-    <div className="space-y-5 max-w-4xl">
+    <div className="space-y-5 w-full">
       {/* Back */}
       <Link href="/personas" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900">
         <ArrowLeft size={15} />

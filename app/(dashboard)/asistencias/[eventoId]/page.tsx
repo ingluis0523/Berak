@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import type { Persona, Asistencia, GrupoMiembro } from '@/types'
 import { AsistenciaClient } from './asistencia-client'
+import { getCurrentUser } from '@/lib/current-user'
 
 interface PageProps {
   params: Promise<{ eventoId: string }>
@@ -33,6 +34,39 @@ export default async function AsistenciaPage({ params, searchParams }: PageProps
     .single()
 
   if (!evento) notFound()
+
+  const currentUser = await getCurrentUser()
+  const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
+
+  let myGroupIds: string[] = []
+  let scopedPersonaIds: string[] = []
+
+  if (!hasFullAccess) {
+    const { resolveUserScope } = await import('@/lib/resolve-user-scope')
+    const { myGroupIds: gIds, scopedPersonaIds: pIds } = await resolveUserScope(supabase, currentUser)
+    myGroupIds = gIds
+    scopedPersonaIds = pIds
+  }
+
+  // Validate permission and group constraints
+  const canSeeAsistencia = currentUser?.hasPermission('ver_asistencias') ||
+                           currentUser?.hasPermission('registrar_asistencias') ||
+                           currentUser?.hasPermission('editar_asistencias') ||
+                           currentUser?.hasPermission('asistencias') ?? true
+  if (!canSeeAsistencia) notFound()
+
+  if (!hasFullAccess) {
+    const isGlobal = !evento.grupo_id
+    if (isGlobal) {
+      if (!grupoFiltro || !myGroupIds.includes(grupoFiltro)) {
+        notFound()
+      }
+    } else {
+      if (!myGroupIds.includes(evento.grupo_id)) {
+        notFound()
+      }
+    }
+  }
 
   const grupoId = evento.grupo_id as string | null
 
@@ -92,6 +126,9 @@ export default async function AsistenciaPage({ params, searchParams }: PageProps
       miembrosIniciales={miembros}
       asistenciasIniciales={(asistenciasExistentes ?? []) as (Asistencia & { persona: Persona | null })[]}
       usuarioId={user?.id ?? null}
+      hasFullAccess={hasFullAccess}
+      scopedPersonaIds={scopedPersonaIds}
+      permisos={currentUser?.permisos ?? []}
     />
   )
 }

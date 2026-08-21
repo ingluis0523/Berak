@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { useReporteScope } from "./use-reporte-scope";
 import {
   nrWeekInfo,
   exportCSV,
@@ -14,6 +15,7 @@ import { getNombreCompleto, formatDate } from "@/lib/utils";
 
 export function useNoReportado() {
   const supabase = createClient();
+  const { loading: loadingScope, hasFullAccess, myGroupIds } = useReporteScope();
   const [loading, setLoading] = useState(true);
   const [eventos, setEventos] = useState<EventoReporteInfo[]>([]);
   const [redesList, setRedesList] = useState<{ id: string; nombre: string }[]>(
@@ -30,10 +32,62 @@ export function useNoReportado() {
   const [openEvents, setOpenEvents] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    if (loadingScope) return;
     let active = true;
     (async () => {
       setLoading(true);
       const hoy = format(new Date(), "yyyy-MM-dd");
+
+      let eventosQuery = supabase
+        .from("eventos")
+        .select("id, nombre, fecha, hora_inicio, estado, grupo_id")
+        .lte("fecha", hoy)
+        .neq("estado", "cancelado")
+        .order("fecha", { ascending: false });
+
+      let gruposQuery = supabase
+        .from("grupos")
+        .select(
+          `
+          id,
+          nombre,
+          dia_reunion,
+          hora_reunion,
+          red_id,
+          red:red_id(id, nombre),
+          lider_id,
+          lider:personas!lider_id(id, nombres, apellidos, telefono, correo, foto_url),
+          sublider_id,
+          sublider:personas!sublider_id(id, nombres, apellidos, telefono, correo, foto_url)
+        `,
+        )
+        .eq("estado", true)
+        .is("deleted_at", null)
+        .order("nombre");
+
+      let miembrosQuery = supabase
+        .from("grupo_miembros")
+        .select("persona_id, grupo_id")
+        .eq("activo", true);
+
+      let redesQuery = supabase
+        .from("redes")
+        .select("id, nombre")
+        .eq("estado", true)
+        .is("deleted_at", null)
+        .order("nombre");
+
+      if (!hasFullAccess) {
+        if (myGroupIds.length > 0) {
+          eventosQuery = eventosQuery.or(`grupo_id.is.null,grupo_id.in.(${myGroupIds.join(",")})`);
+          gruposQuery = gruposQuery.in("id", myGroupIds);
+          miembrosQuery = miembrosQuery.in("grupo_id", myGroupIds);
+        } else {
+          eventosQuery = eventosQuery.is("grupo_id", null);
+          gruposQuery = gruposQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+          miembrosQuery = miembrosQuery.eq("grupo_id", "00000000-0000-0000-0000-000000000000");
+        }
+      }
 
       const [
         { data: eventosData },
@@ -41,46 +95,19 @@ export function useNoReportado() {
         { data: miembrosData },
         { data: redesData },
       ] = await Promise.all([
-        supabase
-          .from("eventos")
-          .select("id, nombre, fecha, hora_inicio, estado, grupo_id")
-          .lte("fecha", hoy)
-          .neq("estado", "cancelado")
-          .order("fecha", { ascending: false }),
-        supabase
-          .from("grupos")
-          .select(
-            `
-            id,
-            nombre,
-            dia_reunion,
-            hora_reunion,
-            red_id,
-            red:red_id(id, nombre),
-            lider_id,
-            lider:personas!lider_id(id, nombres, apellidos, telefono, correo, foto_url),
-            sublider_id,
-            sublider:personas!sublider_id(id, nombres, apellidos, telefono, correo, foto_url)
-          `,
-          )
-          .eq("estado", true)
-          .is("deleted_at", null)
-          .order("nombre"),
-        supabase
-          .from("grupo_miembros")
-          .select("persona_id, grupo_id")
-          .eq("activo", true),
-        supabase
-          .from("redes")
-          .select("id, nombre")
-          .eq("estado", true)
-          .is("deleted_at", null)
-          .order("nombre"),
+        eventosQuery,
+        gruposQuery,
+        miembrosQuery,
+        redesQuery,
       ]);
 
       if (!active) return;
 
-      setRedesList((redesData ?? []) as { id: string; nombre: string }[]);
+      const fetchedRedes = (redesData ?? []) as { id: string; nombre: string }[];
+      setRedesList(fetchedRedes);
+      if (fetchedRedes.length === 1) {
+        setRedFilter(fetchedRedes[0].id);
+      }
 
       const activeGroups: GrupoLiderInfo[] = (gruposData ?? []).map(
         (g: any) => {
@@ -225,7 +252,7 @@ export function useNoReportado() {
     return () => {
       active = false;
     };
-  }, [supabase]);
+  }, [supabase, loadingScope, hasFullAccess, myGroupIds]);
 
   const filteredData = useMemo(() => {
     const q = searchFilter.trim().toLowerCase();

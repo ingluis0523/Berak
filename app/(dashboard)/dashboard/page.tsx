@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/current-user'
 import { formatDate } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AttendanceChart } from './attendance-chart'
@@ -51,7 +52,11 @@ function KpiCard({ icon, label, value, trend, iconBg = 'bg-blue-50', iconColor =
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
+  const [supabase, currentUser] = await Promise.all([
+    createClient(),
+    getCurrentUser(),
+  ])
+  const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
 
   // Today / week boundaries
   const now = new Date()
@@ -63,6 +68,75 @@ export default async function DashboardPage() {
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
   // ── KPI queries (parallel) ──────────────────────────────────────────────────
+  // Resolve visible groups & members for leaders
+  let myGroupIds: string[] = []
+  let scopedPersonaIds: string[] = []
+
+  if (!hasFullAccess) {
+    const { resolveUserScope } = await import('@/lib/resolve-user-scope')
+    const { myGroupIds: gIds, scopedPersonaIds: pIds } = await resolveUserScope(supabase, currentUser)
+    myGroupIds = gIds
+    scopedPersonaIds = pIds
+  }
+
+  // ── Build Scoped Queries ──────────────────────────────────────────────────
+  let totalPersonasQuery = supabase.from('personas').select('*', { count: 'exact', head: true }).is('deleted_at', null)
+  let recentPersonasQuery = supabase
+    .from('personas')
+    .select('id, nombres, apellidos, tipo_persona, fecha_registro, estado_persona:estado_persona_id(nombre, color)')
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(8)
+  
+  if (!hasFullAccess) {
+    totalPersonasQuery = totalPersonasQuery.or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`)
+    recentPersonasQuery = recentPersonasQuery.or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`)
+  }
+
+  let gruposActivosQuery = supabase.from('grupos').select('*', { count: 'exact', head: true }).eq('estado', true).is('deleted_at', null)
+  if (!hasFullAccess) {
+    if (myGroupIds.length > 0) {
+      gruposActivosQuery = gruposActivosQuery.in('id', myGroupIds)
+    } else {
+      gruposActivosQuery = gruposActivosQuery.eq('id', '00000000-0000-0000-0000-000000000000')
+    }
+  }
+
+  let eventosSemanaQuery = supabase
+    .from('eventos')
+    .select('*', { count: 'exact', head: true })
+    .gte('fecha', startOfWeek.toISOString().split('T')[0])
+    .lte('fecha', endOfWeek.toISOString().split('T')[0])
+  
+  let upcomingEventsQuery = supabase
+    .from('eventos')
+    .select('id, nombre, fecha, hora_inicio, grupo:grupo_id(nombre)')
+    .gte('fecha', now.toISOString().split('T')[0])
+    .order('fecha', { ascending: true })
+    .limit(5)
+
+  let weeklyAttendanceQuery = supabase
+    .from('eventos')
+    .select('id, nombre, fecha, asistencias(estado, es_visitante, persona:personas(id, lider_id))')
+    .gte('fecha', new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+    .lte('fecha', now.toISOString().split('T')[0])
+    .neq('estado', 'cancelado')
+    .order('fecha', { ascending: true })
+
+  if (!hasFullAccess) {
+    if (myGroupIds.length > 0) {
+      const orFilter = `grupo_id.is.null,grupo_id.in.(${myGroupIds.join(',')})`
+      eventosSemanaQuery = eventosSemanaQuery.or(orFilter)
+      upcomingEventsQuery = upcomingEventsQuery.or(orFilter)
+      weeklyAttendanceQuery = weeklyAttendanceQuery.or(orFilter)
+    } else {
+      eventosSemanaQuery = eventosSemanaQuery.is('grupo_id', null)
+      upcomingEventsQuery = upcomingEventsQuery.is('grupo_id', null)
+      weeklyAttendanceQuery = weeklyAttendanceQuery.is('grupo_id', null)
+    }
+  }
+
+  // ── KPI queries (parallel) ──────────────────────────────────────────────────
   const [
     { count: totalPersonas },
     { count: gruposActivos },
@@ -72,53 +146,41 @@ export default async function DashboardPage() {
     { data: weeklyAttendance },
     { data: estadoInactivoRow },
   ] = await Promise.all([
-    supabase.from('personas').select('*', { count: 'exact', head: true }).is('deleted_at', null),
-    supabase.from('grupos').select('*', { count: 'exact', head: true }).eq('estado', true).is('deleted_at', null),
-    supabase
-      .from('eventos')
-      .select('*', { count: 'exact', head: true })
-      .gte('fecha', startOfWeek.toISOString().split('T')[0])
-      .lte('fecha', endOfWeek.toISOString().split('T')[0]),
-    // Recent people (last 8 registered)
-    supabase
-      .from('personas')
-      .select('id, nombres, apellidos, tipo_persona, fecha_registro, estado_persona:estado_persona_id(nombre, color)')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(8),
-    // Upcoming events this week
-    supabase
-      .from('eventos')
-      .select('id, nombre, fecha, hora_inicio, grupo:grupo_id(nombre)')
-      .gte('fecha', now.toISOString().split('T')[0])
-      .order('fecha', { ascending: true })
-      .limit(5),
-    // Last 4 weeks events with real attendance counts
-    supabase
-      .from('eventos')
-      .select('id, nombre, fecha, asistencias(estado, es_visitante)')
-      .gte('fecha', new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-      .lte('fecha', now.toISOString().split('T')[0])
-      .neq('estado', 'cancelado')
-      .order('fecha', { ascending: true }),
+    totalPersonasQuery,
+    gruposActivosQuery,
+    eventosSemanaQuery,
+    recentPersonasQuery,
+    upcomingEventsQuery,
+    weeklyAttendanceQuery,
     supabase.from('estados_persona').select('id').ilike('nombre', '%inactiv%').limit(1).maybeSingle(),
   ])
 
 
   // ── Nuevos del mes + Inactivos ─────────────────────────────────────────────
+  let nuevosDelMesQuery = supabase
+    .from('personas')
+    .select('*', { count: 'exact', head: true })
+    .is('deleted_at', null)
+    .gte('fecha_registro', startOfMonth.toISOString())
+  if (!hasFullAccess) {
+    nuevosDelMesQuery = nuevosDelMesQuery.or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`)
+  }
+
+  let inactivosQuery = estadoInactivoRow?.id
+    ? supabase
+        .from('personas')
+        .select('*', { count: 'exact', head: true })
+        .eq('estado_persona_id', estadoInactivoRow.id)
+        .is('deleted_at', null)
+    : null
+
+  if (inactivosQuery && !hasFullAccess) {
+    inactivosQuery = inactivosQuery.or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`)
+  }
+
   const [nuevosDelMesResult, inactivosResult] = await Promise.all([
-    supabase
-      .from('personas')
-      .select('*', { count: 'exact', head: true })
-      .is('deleted_at', null)
-      .gte('fecha_registro', startOfMonth.toISOString()),
-    estadoInactivoRow?.id
-      ? supabase
-          .from('personas')
-          .select('*', { count: 'exact', head: true })
-          .eq('estado_persona_id', estadoInactivoRow.id)
-          .is('deleted_at', null)
-      : Promise.resolve({ count: 0 }),
+    nuevosDelMesQuery,
+    inactivosQuery ?? Promise.resolve({ count: 0 }),
   ])
 
   const nuevosDelMes = nuevosDelMesResult.count ?? 0
@@ -126,11 +188,16 @@ export default async function DashboardPage() {
 
 
   // ── Compute attendance counts from join ───────────────────────────────────
-  type AsistRow = { estado: string; es_visitante: boolean | null }
+  type AsistRow = { estado: string; es_visitante: boolean | null; persona: { id: string; lider_id: string | null } | null }
   const eventsWithCount = (weeklyAttendance ?? []).map((e) => ({
     fecha: e.fecha,
     count: ((e.asistencias ?? []) as AsistRow[])
-      .filter((a) => a.estado === 'asistio' && a.es_visitante !== true).length,
+      .filter((a) => a.estado === 'asistio' && a.es_visitante !== true && (
+        hasFullAccess || (a.persona !== null && (
+          scopedPersonaIds.includes(a.persona.id) || 
+          (a.persona.lider_id && scopedPersonaIds.includes(a.persona.lider_id))
+        ))
+      )).length,
   }))
 
   // ── Average attendance % ───────────────────────────────────────────────────

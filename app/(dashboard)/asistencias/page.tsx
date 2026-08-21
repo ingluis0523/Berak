@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table'
 import { ClipboardCheck, Eye } from 'lucide-react'
 import { AsistenciasFilters } from './asistencias-filters'
+import { getCurrentUser } from '@/lib/current-user'
 
 export const metadata: Metadata = { title: 'Asistencias' }
 
@@ -44,13 +45,35 @@ export default async function AsistenciasPage({ searchParams }: PageProps) {
   const to = from + PER_PAGE - 1
 
   const supabase = await createClient()
+  const currentUser = await getCurrentUser()
+  const hasFullAccess = currentUser?.is_admin || (currentUser?.permisos ?? []).includes('acceso_todas_redes')
+
+  let myGroupIds: string[] = []
+  let scopedPersonaIds: string[] = []
+
+  if (!hasFullAccess) {
+    const { resolveUserScope } = await import('@/lib/resolve-user-scope')
+    const { myGroupIds: gIds, scopedPersonaIds: pIds } = await resolveUserScope(supabase, currentUser)
+    myGroupIds = gIds
+    scopedPersonaIds = pIds
+  }
+
+  let gruposQuery = supabase
+    .from('grupos')
+    .select('id, nombre')
+    .is('deleted_at', null)
+    .order('nombre')
+
+  if (!hasFullAccess) {
+    if (myGroupIds.length > 0) {
+      gruposQuery = gruposQuery.in('id', myGroupIds)
+    } else {
+      gruposQuery = gruposQuery.eq('id', '00000000-0000-0000-0000-000000000000')
+    }
+  }
 
   const [{ data: grupos }] = await Promise.all([
-    supabase
-      .from('grupos')
-      .select('id, nombre')
-      .is('deleted_at', null)
-      .order('nombre'),
+    gruposQuery,
   ])
 
   const today = new Date().toISOString().split('T')[0]
@@ -62,9 +85,25 @@ export default async function AsistenciasPage({ searchParams }: PageProps) {
   if (search) {
     allIdsQuery = allIdsQuery.ilike('nombre', `%${search}%`)
   }
+
   if (grupoFilter) {
-    allIdsQuery = allIdsQuery.eq('grupo_id', grupoFilter)
+    if (!hasFullAccess && !myGroupIds.includes(grupoFilter)) {
+      if (myGroupIds.length > 0) {
+        allIdsQuery = allIdsQuery.in('grupo_id', myGroupIds)
+      } else {
+        allIdsQuery = allIdsQuery.eq('id', '00000000-0000-0000-0000-000000000000')
+      }
+    } else {
+      allIdsQuery = allIdsQuery.eq('grupo_id', grupoFilter)
+    }
+  } else if (!hasFullAccess) {
+    if (myGroupIds.length > 0) {
+      allIdsQuery = allIdsQuery.in('grupo_id', myGroupIds)
+    } else {
+      allIdsQuery = allIdsQuery.eq('id', '00000000-0000-0000-0000-000000000000')
+    }
   }
+
   if (estadoFilter) {
     allIdsQuery = allIdsQuery.eq('estado', estadoFilter)
   }
@@ -146,10 +185,19 @@ export default async function AsistenciasPage({ searchParams }: PageProps) {
 
   if (eventoIds.length > 0) {
     // Fetch active group members count for group events context
-    const { data: miembrosData } = await supabase
+    let miembrosQuery = supabase
       .from('grupo_miembros')
       .select('grupo_id')
       .eq('activo', true)
+
+    if (!hasFullAccess) {
+      if (myGroupIds.length > 0) {
+        miembrosQuery = miembrosQuery.in('grupo_id', myGroupIds)
+      } else {
+        miembrosQuery = miembrosQuery.eq('grupo_id', '00000000-0000-0000-0000-000000000000')
+      }
+    }
+    const { data: miembrosData } = await miembrosQuery
 
     const groupCounts: Record<string, number> = {}
     miembrosData?.forEach((gm) => {
@@ -159,12 +207,21 @@ export default async function AsistenciasPage({ searchParams }: PageProps) {
     })
 
     // Fetch total active personas registered in the platform (deleted_at is null)
-    const { count: totalPersonas } = await supabase
-      .from('personas')
-      .select('id', { count: 'exact', head: true })
-      .is('deleted_at', null)
-
-    const totalRegistrados = totalPersonas ?? 0
+    let totalRegistrados = 0
+    if (!hasFullAccess) {
+      const { count } = await supabase
+        .from('personas')
+        .select('id', { count: 'exact', head: true })
+        .is('deleted_at', null)
+        .or(`id.in.(${scopedPersonaIds.join(',')}),lider_id.in.(${scopedPersonaIds.join(',')})`)
+      totalRegistrados = count ?? 0
+    } else {
+      const { count: totalPersonas } = await supabase
+        .from('personas')
+        .select('id', { count: 'exact', head: true })
+        .is('deleted_at', null)
+      totalRegistrados = totalPersonas ?? 0
+    }
 
     const { data: asistencias } = await supabase
       .from('asistencias')
