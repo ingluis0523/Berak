@@ -247,6 +247,7 @@ export function useAsistencia({
         nombre_visitante: visitanteForm.nombre.trim(),
         telefono_visitante: visitanteForm.telefono.trim() || null,
         registrado_por: usuarioId,
+        notas: grupoOrigenId ? `grupo_id:${grupoOrigenId}` : null,
       })
       .select("id")
       .single();

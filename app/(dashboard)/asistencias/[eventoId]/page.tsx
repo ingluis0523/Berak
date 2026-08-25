@@ -29,7 +29,7 @@ export default async function AsistenciaPage({ params, searchParams }: PageProps
   // Load event
   const { data: evento } = await supabase
     .from('eventos')
-    .select('*, grupo:grupos(id,nombre)')
+    .select('*, grupo:grupos(id,nombre,lider_id,sublider_id,anfitrion_id)')
     .eq('id', eventoId)
     .single()
 
@@ -49,10 +49,12 @@ export default async function AsistenciaPage({ params, searchParams }: PageProps
   }
 
   // Validate permission and group constraints
-  const canSeeAsistencia = currentUser?.hasPermission('ver_asistencias') ||
-                           currentUser?.hasPermission('registrar_asistencias') ||
-                           currentUser?.hasPermission('editar_asistencias') ||
-                           currentUser?.hasPermission('asistencias') ?? true
+  const canSeeAsistencia = (
+    currentUser?.hasPermission('ver_asistencias') ||
+    currentUser?.hasPermission('registrar_asistencias') ||
+    currentUser?.hasPermission('editar_asistencias') ||
+    currentUser?.hasPermission('asistencias')
+  ) ?? true
   if (!canSeeAsistencia) notFound()
 
   if (!hasFullAccess) {
@@ -94,11 +96,11 @@ export default async function AsistenciaPage({ params, searchParams }: PageProps
   }
 
   // Load group info when event is global but a group filter is given
-  let grupoOrigen: { id: string; nombre: string } | null = null
+  let grupoOrigen: { id: string; nombre: string; lider_id?: string | null; sublider_id?: string | null; anfitrion_id?: string | null } | null = null
   if (!grupoId && grupoFiltro) {
     const { data: g } = await supabase
       .from('grupos')
-      .select('id, nombre')
+      .select('id, nombre, lider_id, sublider_id, anfitrion_id')
       .eq('id', grupoFiltro)
       .single()
     grupoOrigen = g
@@ -108,7 +110,49 @@ export default async function AsistenciaPage({ params, searchParams }: PageProps
   const { data: { user } } = await supabase.auth.getUser()
 
   const grupoRaw = evento.grupo
-  const grupo = (Array.isArray(grupoRaw) ? grupoRaw[0] : grupoRaw) as { id: string; nombre: string } | null
+  const grupo = (Array.isArray(grupoRaw) ? grupoRaw[0] : grupoRaw) as { id: string; nombre: string; lider_id?: string | null; sublider_id?: string | null; anfitrion_id?: string | null } | null
+
+  // For global events, only show visitors registered by the group's leaders/members or the current user
+  let filteredAsistencias = asistenciasExistentes ?? []
+  if (!grupoId && grupoParaMiembros) {
+    const activeGroup = grupoOrigen || grupo
+    const liderIds = [
+      activeGroup?.lider_id,
+      activeGroup?.sublider_id,
+      activeGroup?.anfitrion_id
+    ].filter(Boolean) as string[]
+
+    const associatedPersonaIds = Array.from(new Set([
+      ...liderIds,
+      ...miembros.map((m) => m.persona_id as string)
+    ]))
+
+    let allowedRegisterUserIds: string[] = []
+    if (associatedPersonaIds.length > 0) {
+      const { data: userRecords } = await supabase
+        .from('usuarios')
+        .select('id')
+        .in('persona_id', associatedPersonaIds)
+      allowedRegisterUserIds = (userRecords ?? []).map((u) => u.id)
+    }
+
+    if (user?.id && !allowedRegisterUserIds.includes(user.id)) {
+      allowedRegisterUserIds.push(user.id)
+    }
+
+    filteredAsistencias = (asistenciasExistentes ?? []).filter((a) => {
+      // Keep members
+      if (!a.es_visitante && a.persona_id) return true
+      // Keep visitors that belong to this group:
+      // Either they have the grupo_id stored in `notas` matching this group,
+      // OR (for old records) we fall back to checking if they were registered by the group's leaders
+      if (a.notas && a.notas.startsWith('grupo_id:')) {
+        const storedGroupId = a.notas.replace('grupo_id:', '').trim()
+        return storedGroupId === grupoParaMiembros
+      }
+      return a.registrado_por && allowedRegisterUserIds.includes(a.registrado_por)
+    })
+  }
 
   return (
     <AsistenciaClient
@@ -124,7 +168,7 @@ export default async function AsistenciaPage({ params, searchParams }: PageProps
       }}
       grupoOrigenId={grupoFiltro ?? grupoId}
       miembrosIniciales={miembros}
-      asistenciasIniciales={(asistenciasExistentes ?? []) as (Asistencia & { persona: Persona | null })[]}
+      asistenciasIniciales={filteredAsistencias as (Asistencia & { persona: Persona | null })[]}
       usuarioId={user?.id ?? null}
       hasFullAccess={hasFullAccess}
       scopedPersonaIds={scopedPersonaIds}

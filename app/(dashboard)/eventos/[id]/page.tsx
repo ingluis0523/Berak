@@ -61,7 +61,7 @@ export default async function EventoDetallePage({
   const { data: evento } = await supabase
     .from("eventos")
     .select(
-      "*, grupo:grupos(id,nombre), plantilla:eventos_plantilla(id,nombre,frecuencia)",
+      "*, grupo:grupos(id,nombre,lider_id,sublider_id,anfitrion_id), plantilla:eventos_plantilla(id,nombre,frecuencia)",
     )
     .eq("id", id)
     .single();
@@ -79,6 +79,9 @@ export default async function EventoDetallePage({
     grupo: (Array.isArray(grupoRaw) ? grupoRaw[0] : grupoRaw) as {
       id: string;
       nombre: string;
+      lider_id?: string | null;
+      sublider_id?: string | null;
+      anfitrion_id?: string | null;
     } | null,
     plantilla: (Array.isArray(plantillaRaw)
       ? plantillaRaw[0]
@@ -102,6 +105,16 @@ export default async function EventoDetallePage({
     memberIdsForFilter = (gm ?? []).map((m) => m.persona_id as string);
   }
 
+  let grupoOrigen: { id: string; nombre: string; lider_id?: string | null; sublider_id?: string | null; anfitrion_id?: string | null } | null = null;
+  if (!ev.grupo_id && grupoFiltro) {
+    const { data: g } = await supabase
+      .from("grupos")
+      .select("id, nombre, lider_id, sublider_id, anfitrion_id")
+      .eq("id", grupoFiltro)
+      .single();
+    grupoOrigen = g;
+  }
+
   // Load attendances — filter by group members for global events
   let asistQuery = supabase
     .from("asistencias")
@@ -122,7 +135,49 @@ export default async function EventoDetallePage({
   })[];
 
   // Filter out attendances where the persona is hidden by RLS (persona is null but persona_id is not null)
-  const asist = rawAsist.filter((a) => !(a.persona === null && a.persona_id !== null));
+  let asist = rawAsist.filter((a) => !(a.persona === null && a.persona_id !== null));
+
+  // If global event and we have a group context, filter visitors to only those registered by this group's leaders/members or current user
+  if (!ev.grupo_id && grupoContexto) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const activeGroup = grupoOrigen || ev.grupo;
+    const liderIds = [
+      activeGroup?.lider_id,
+      activeGroup?.sublider_id,
+      activeGroup?.anfitrion_id
+    ].filter(Boolean) as string[];
+
+    const associatedPersonaIds = Array.from(new Set([
+      ...liderIds,
+      ...(memberIdsForFilter ?? [])
+    ]));
+
+    let allowedRegisterUserIds: string[] = [];
+    if (associatedPersonaIds.length > 0) {
+      const { data: userRecords } = await supabase
+        .from('usuarios')
+        .select('id')
+        .in('persona_id', associatedPersonaIds);
+      allowedRegisterUserIds = (userRecords ?? []).map((u) => u.id);
+    }
+
+    if (user?.id && !allowedRegisterUserIds.includes(user.id)) {
+      allowedRegisterUserIds.push(user.id);
+    }
+
+    asist = asist.filter((a) => {
+      // Keep members
+      if (!a.es_visitante && a.persona_id) return true;
+      // Keep visitors that belong to this group:
+      // Either they have the grupo_id stored in `notas` matching this group,
+      // OR (for old records) we fall back to checking if they were registered by the group's leaders
+      if (a.notas && a.notas.startsWith('grupo_id:')) {
+        const storedGroupId = a.notas.replace('grupo_id:', '').trim();
+        return storedGroupId === grupoContexto;
+      }
+      return a.registrado_por && allowedRegisterUserIds.includes(a.registrado_por);
+    });
+  }
 
   const asistio = asist.filter((a) => a.estado === "asistio");
   const noAsistio = asist.filter((a) => a.estado === "no_asistio");

@@ -52,7 +52,7 @@ export function useNuevaPersona(currentPersonaId?: string | null) {
   } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      tipo_persona: "visitante",
+      tipo_persona: "miembro",
       lider_id: currentPersonaId ?? undefined,
     },
   });
